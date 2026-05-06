@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+.pytest_cache/
 venv/
 .venv/
 env/
@@ -41,3 +43,8 @@ backend/mysql-data/
 backend/es-data/
 backend/minio-data/
 backend/redis-data/
+
+# --- OS 文件 ---
+.DS_Store
+Thumbs.db
+*.tmp

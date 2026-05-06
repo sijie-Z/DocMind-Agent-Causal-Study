@@ -28,26 +28,40 @@
 ## 项目结构
 
 ```
-1_demo/
-├── backend/                 # FastAPI 后端
+DocMind/
+├── backend/                     # FastAPI 后端
 │   ├── app/
-│   │   ├── api/v1/endpoints/ # 接口：auth, documents, chat, knowledge, ...
-│   │   ├── core/             # 配置、数据库、ES、Kafka、MinIO、安全
-│   │   ├── models/           # 数据模型
-│   │   ├── services/         # RAG、Embedding、文档解析、知识库服务
-│   │   └── worker/           # 应用内任务（可选）
-│   ├── worker/               # 独立 RAG Worker（消费 Kafka，写 ES）
+│   │   ├── api/v1/
+│   │   │   ├── endpoints/       # 接口：auth, chat, documents, knowledge, ...
+│   │   │   └── router.py        # 路由汇总
+│   │   ├── core/                # 配置、数据库、ES、Kafka、MinIO、安全
+│   │   ├── models/              # 数据模型（chat, document, user, org, ...）
+│   │   ├── schemas/             # Pydantic 请求/响应模型
+│   │   ├── services/            # RAG、Embedding、文档解析、知识库等服务
+│   │   └── worker/              # 应用内任务组件
+│   ├── lib/                     # 通用工具库
+│   │   ├── rag/                 # RAG 工具（chunk, vectorizer, retriever, hybrid）
+│   │   ├── auth/                # JWT 认证
+│   │   ├── rbac/                # 权限控制
+│   │   └── upload/              # 上传管理
+│   ├── worker/                  # 独立 RAG Worker（消费 Kafka，写 ES）
 │   │   └── doc_consumer.py
+│   ├── config/                  # 监控与告警配置（Prometheus, Grafana）
 │   ├── requirements.txt
 │   └── .env.example
-├── frontend/                 # Vue 3 前端
+├── frontend/                    # Vue 3 前端
 │   ├── src/
-│   │   ├── views/            # 聊天、知识库、登录、首页等
-│   │   ├── api/              # 接口封装
-│   │   ├── stores/           # Pinia
-│   │   └── layouts/          # 布局与侧栏
+│   │   ├── views/               # 页面组件（chat, knowledge, login, workflow, ...）
+│   │   ├── api/                 # 接口封装
+│   │   ├── stores/              # Pinia 状态管理
+│   │   ├── composables/         # 组合式函数
+│   │   └── utils/               # 工具函数（WebSocket, SSE, request）
 │   └── package.json
-└── README.md                 # 本文件
+├── deploy/monitoring/           # 生产级监控部署配置
+├── docs/                        # 文档
+├── start_windows.bat            # Windows 一键启动
+├── start.sh                     # Linux/Mac 一键启动
+└── README.md                    # 本文件
 ```
 
 ---
