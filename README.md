@@ -281,11 +281,18 @@ DocMind/
 │   │   ├── api/                     # 15 个 API 模块封装
 │   │   ├── stores/                  # Pinia 状态管理
 │   │   ├── utils/
-│   │   │   ├── __tests__/           # Vitest 测试（49 个用例）
+│   │   │   ├── __tests__/           # Vitest 测试（91 个用例）
 │   │   │   │   ├── auth.test.ts
 │   │   │   │   ├── format.test.ts
 │   │   │   │   ├── retry.test.ts
 │   │   │   │   └── websocket.test.ts
+│   │   ├── stores/
+│   │   │   └── __tests__/           # Store 测试
+│   │   │       ├── chat.test.ts
+│   │   │       └── workflow.test.ts
+│   │   ├── composables/
+│   │   │   └── __tests__/           # Composable 测试
+│   │   │       └── useDebounce.test.ts
 │   │   │   ├── websocket.ts         # WebSocket 单例服务
 │   │   │   ├── auth.ts              # Token 管理（Cookie + localStorage）
 │   │   │   ├── retry.ts             # 指数退避重试
@@ -337,7 +344,7 @@ python -m pytest tests/ -v
 - **DocumentParser**：TXT/DOCX 解析、元数据提取
 - **Auth API**：注册密码校验、缺少字段、无效邮箱
 
-### 前端测试（49 个用例）
+### 前端测试（91 个用例）
 
 ```bash
 cd frontend
@@ -349,13 +356,18 @@ npm test
 - **format.ts**：日期相对格式化、文件大小格式化、时长格式化、文本截断
 - **retry.ts**：指数退避、可重试条件判断、retry-after 头、最大重试次数
 - **websocket.ts**：连接生命周期、发送守卫、状态管理
+- **chat store**：会话管理、消息 CRUD、加载状态、文档解绑
+- **workflow store**：节点/边 CRUD、选择、执行状态、流程数据序列化
+- **useDebounce**：防抖/节流 Ref、防抖/节流函数
 
 ### CI/CD
 
 Push 或 PR 到 `main` / `develop` 分支时，GitHub Actions 自动运行：
 - 后端测试（Python 3.11 + 3.12）
 - 前端测试（Node 18 + 20）
-- Lint 检查
+- TypeScript 类型检查（`vue-tsc --noEmit`，零错误要求）
+- 生产构建（`npm run build`）
+- ESLint 检查（零错误零警告）
 
 ---
 
@@ -425,7 +437,31 @@ chat/index.vue (230 行)
 
 ## 更新日志
 
-### 2026-05-07
+### 2026-05-07（TypeScript 类型安全 & 代码质量）
+
+**TypeScript 类型安全**
+- 消除前端 137 个 `any` 类型 → 剩余 39 个均为合理用法（catch、泛型约束、Vue Router 断言等）
+- 统一 workflow store 与 API 类型定义，消除重复接口
+- 新增 `types/api.ts` 集中管理 API 响应类型（OrganizationMember、OrganizationDocument、WorkflowNodeData 等）
+- 所有 API 响应 cast 通过 `unknown` 中间层，避免不安全的类型断言
+- `vue-tsc --noEmit` 零错误通过
+
+**前端测试**
+- 新增 42 个测试用例（chat store 8、workflow store 20、useDebounce/useThrottle 14）
+- 总计 91 个 Vitest 用例，7 个测试文件
+
+**ESLint 代码质量**
+- 修复 7 个 ESLint 错误（空 catch 块、未使用变量、ts-ignore、常量条件）
+- 清理 156 个 ESLint 警告（未使用导入、未使用变量、console 语句）
+- ESLint 配置升级为 `@vue/eslint-config-typescript/recommended`
+- 最终状态：零错误零警告
+
+**CI/CD 强化**
+- `vue-tsc` 类型检查从 `continue-on-error` 改为硬性要求
+- 新增 `npm run build` 构建验证步骤
+- ESLint 从 `continue-on-error` 改为硬性要求
+
+### 2026-05-07（初始）
 
 **测试**
 - 新增 132 个后端 pytest 用例（auth, masking, circuit breaker, RAG, config, parser, API）
