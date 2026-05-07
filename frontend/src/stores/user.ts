@@ -66,19 +66,23 @@ export const useUserStore = defineStore('user', () => {
     try {
       const response = await loginWithJson(form)
       // 兼容 { data: { access_token, user_info, ... } } 与 直接 { access_token, ... }
-      const payload = (response.data as any)?.data ?? response.data
+      const raw = response.data as unknown as Record<string, unknown>
+      const payload = (raw?.data as Record<string, unknown>) ?? raw
       if (!payload || !payload.access_token) {
-        throw new Error((response.data as any)?.message || '后端返回数据格式错误')
+        throw new Error((raw?.message as string) || '后端返回数据格式错误')
       }
 
-      const { access_token, refresh_token, expires_in, user_info: loginUserInfo } = payload
+      const access_token = payload.access_token as string
+      const refresh_token = payload.refresh_token as string | undefined
+      const expires_in = payload.expires_in as number | undefined
+      const loginUserInfo = payload.user_info as UserInfo | undefined
       token.value = access_token
       setToken(access_token, expires_in ?? 86400)
       if (refresh_token) setRefreshToken(refresh_token)
 
       if (loginUserInfo) {
         userInfo.value = loginUserInfo
-        currentOrganizationId.value = (loginUserInfo as any).organization_id || null
+        currentOrganizationId.value = loginUserInfo.organization_id || null
         if (loginUserInfo.preferences) {
           try {
             const prefs = typeof loginUserInfo.preferences === 'string'
@@ -105,12 +109,13 @@ export const useUserStore = defineStore('user', () => {
   const register = async (form: RegisterForm) => {
     try {
       const response = await apiRegister(form)
-      const payload = (response.data as any)?.data ?? response.data
+      const raw = response.data as unknown as Record<string, unknown>
+      const payload = (raw?.data as Record<string, unknown>) ?? raw
       if (payload?.access_token) {
-        token.value = payload.access_token
-        setToken(payload.access_token, payload.expires_in ?? 86400)
-        if (payload.refresh_token) setRefreshToken(payload.refresh_token)
-        if (payload.user_info) userInfo.value = payload.user_info
+        token.value = payload.access_token as string
+        setToken(payload.access_token as string, (payload.expires_in as number) ?? 86400)
+        if (payload.refresh_token) setRefreshToken(payload.refresh_token as string)
+        if (payload.user_info) userInfo.value = payload.user_info as UserInfo
       }
       return { success: true }
     } catch (error: any) {
@@ -132,13 +137,13 @@ export const useUserStore = defineStore('user', () => {
       // 兼容两种格式：
       // 1. 标准响应格式 { code: 200, data: { ... }, message: "..." }
       // 2. 直接返回对象 { id: ..., username: ... }
-      const resData = response.data as any
+      const resData = response.data as unknown as Record<string, unknown>
       if (resData.data && typeof resData.data === 'object' && !resData.username) {
-          userInfo.value = resData.data
+          userInfo.value = resData.data as UserInfo
       } else {
-          userInfo.value = resData
+          userInfo.value = resData as unknown as UserInfo
       }
-      currentOrganizationId.value = (userInfo.value as any)?.organization_id || null
+      currentOrganizationId.value = userInfo.value?.organization_id || null
       
       // 同步用户偏好设置 (主题)
       if (userInfo.value?.preferences) {

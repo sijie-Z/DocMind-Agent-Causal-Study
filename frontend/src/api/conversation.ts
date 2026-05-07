@@ -1,6 +1,7 @@
 import request from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types/common'
+import type { ChatMessage } from '@/types/chat'
 
 export interface Conversation {
   id: string
@@ -26,7 +27,7 @@ export const getConversations = async (params?: {
   return request.get('/chat/conversations', { params })
 }
 
-export const getConversation = async (id: string): Promise<AxiosResponse<{ data: Conversation & { messages: any[] } }>> => {
+export const getConversation = async (id: string): Promise<AxiosResponse<{ data: Conversation & { messages: ChatMessage[] } }>> => {
   return request.get(`/chat/conversations/${id}`)
 }
 

@@ -7,7 +7,7 @@ export interface MemoryItem {
   content: string
   memory_type: string
   importance: number
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   created_at: string
   last_accessed: string
   access_count: number
@@ -17,9 +17,9 @@ export interface MemorySystemData {
   agent_id: string
   short_term: MemoryItem[]
   long_term: Record<string, MemoryItem[]>
-  working: Record<string, any>
+  working: Record<string, unknown>
   reflective: {
-    insights: Array<{ content: string; context: Record<string, any>; created_at: string }>
+    insights: Array<{ content: string; context: Record<string, unknown>; created_at: string }>
     patterns: Array<{ pattern: string; examples: string[]; created_at: string }>
     lessons: Array<{ lesson: string; trigger?: string; solution?: string; created_at: string }>
   }
@@ -37,7 +37,7 @@ export const storeMemory = async (
   content: string,
   memoryType: string = 'short_term',
   importance: number = 0.5,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ) => {
   return request.post(`/memory/${agentId}/remember`, null, {
     params: { content, memory_type: memoryType, importance },

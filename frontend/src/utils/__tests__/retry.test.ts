@@ -55,7 +55,7 @@ describe('withRetry', () => {
 
     const result = await withRetry(fn, {
       retryDelay: 1,
-      retryCondition: (err) => err.message === 'custom',
+      retryCondition: (err) => (err as Error).message === 'custom',
     })
     expect(result).toBe('ok')
     expect(fn).toHaveBeenCalledTimes(2)

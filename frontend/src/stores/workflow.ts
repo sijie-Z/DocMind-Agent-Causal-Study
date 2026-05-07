@@ -1,31 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { WorkflowNode, WorkflowEdge } from '@/api/workflow'
 
-export interface WorkflowNode {
-  id: string
-  type: string
-  position: { x: number; y: number }
-  data: Record<string, any>
-}
-
-export interface WorkflowEdge {
-  id: string
-  source: string
-  target: string
-  sourceHandle?: string
-  targetHandle?: string
-  label?: string
-  animated?: boolean
-  markerEnd?: string | { type: string; color?: string }
-  type?: string
-}
+export type { WorkflowNode, WorkflowEdge }
 
 export interface NodeExecutionResult {
   nodeId: string
   nodeType: string
   status: 'pending' | 'running' | 'success' | 'failed'
-  input?: any
-  output?: any
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
   error?: string
   duration?: number
   startedAt?: string
@@ -49,7 +33,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
   const isExecuting = ref(false)
   const executionResults = ref<NodeExecutionResult[]>([])
   const executionLogs = ref<string[]>([])
-  const finalOutput = ref<any>(null)
+  const finalOutput = ref<Record<string, unknown> | null>(null)
 
   // LLM 配置
   const llmConfig = ref({
@@ -104,7 +88,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     workflowDescription.value = ''
   }
 
-  const loadWorkflow = (workflow: { id: number; name: string; description?: string; flow_data?: any }) => {
+  const loadWorkflow = (workflow: { id: number; name: string; description?: string; flow_data?: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } }) => {
     currentWorkflowId.value = workflow.id
     workflowName.value = workflow.name
     workflowDescription.value = workflow.description || ''
@@ -136,7 +120,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
 
-  const setExecutionComplete = (output: any) => {
+  const setExecutionComplete = (output: Record<string, unknown> | null) => {
     isExecuting.value = false
     finalOutput.value = output
   }

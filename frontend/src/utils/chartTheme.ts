@@ -113,7 +113,7 @@ export const CHART_THEME = {
   },
 }
 
-export function createChartOption(baseOption: Record<string, any>): Record<string, any> {
+export function createChartOption(baseOption: Record<string, unknown>): Record<string, unknown> {
   return { ...CHART_THEME, ...baseOption }
 }
 

@@ -272,7 +272,7 @@
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">系统提示词</label>
               <n-input
-                v-model:value="selectedNode.data.systemPrompt"
+                v-model:value="nodeData.systemPrompt"
                 type="textarea"
                 placeholder="定义AI的角色和行为..."
                 :autosize="{ minRows: 4, maxRows: 10 }"
@@ -282,11 +282,11 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="text-sm font-medium text-gray-600 dark:text-gray-300">温度</label>
-                <n-input-number v-model:value="selectedNode.data.temperature" :min="0" :max="2" :step="0.1" class="mt-1 w-full" />
+                <n-input-number v-model:value="nodeData.temperature" :min="0" :max="2" :step="0.1" class="mt-1 w-full" />
               </div>
               <div>
                 <label class="text-sm font-medium text-gray-600 dark:text-gray-300">最大Token</label>
-                <n-input-number v-model:value="selectedNode.data.maxTokens" :min="100" :max="8000" :step="100" class="mt-1 w-full" />
+                <n-input-number v-model:value="nodeData.maxTokens" :min="100" :max="8000" :step="100" class="mt-1 w-full" />
               </div>
             </div>
           </template>
@@ -296,7 +296,7 @@
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">提示词模板</label>
               <n-input
-                v-model:value="selectedNode.data.prompt"
+                v-model:value="nodeData.prompt"
                 type="textarea"
                 placeholder="输入提示词模板..."
                 :autosize="{ minRows: 4, maxRows: 8 }"
@@ -311,11 +311,11 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="text-sm font-medium text-gray-600 dark:text-gray-300">返回数量</label>
-                <n-input-number v-model:value="selectedNode.data.topK" :min="1" :max="20" class="mt-1 w-full" />
+                <n-input-number v-model:value="nodeData.topK" :min="1" :max="20" class="mt-1 w-full" />
               </div>
               <div>
                 <label class="text-sm font-medium text-gray-600 dark:text-gray-300">相似度阈值</label>
-                <n-input-number v-model:value="selectedNode.data.scoreThreshold" :min="0" :max="1" :step="0.1" class="mt-1 w-full" />
+                <n-input-number v-model:value="nodeData.scoreThreshold" :min="0" :max="1" :step="0.1" class="mt-1 w-full" />
               </div>
             </div>
           </template>
@@ -324,11 +324,11 @@
           <template v-if="selectedNode.type === 'memory'">
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">记忆类型</label>
-              <n-select v-model:value="selectedNode.data.memoryType" :options="memoryTypeOptions" class="mt-1" />
+              <n-select v-model:value="nodeData.memoryType" :options="memoryTypeOptions" class="mt-1" />
             </div>
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">操作类型</label>
-              <n-select v-model:value="selectedNode.data.action" :options="memoryActionOptions" class="mt-1" />
+              <n-select v-model:value="nodeData.action" :options="memoryActionOptions" class="mt-1" />
             </div>
           </template>
 
@@ -337,7 +337,7 @@
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">条件表达式</label>
               <n-input
-                v-model:value="selectedNode.data.condition"
+                v-model:value="nodeData.condition"
                 placeholder="如: contains(text, '翻译')"
                 class="mt-1"
               />
@@ -356,15 +356,15 @@
           <template v-if="selectedNode.type === 'api_call'">
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">请求方法</label>
-              <n-select v-model:value="selectedNode.data.method" :options="httpMethods" class="mt-1" />
+              <n-select v-model:value="nodeData.method" :options="httpMethods" class="mt-1" />
             </div>
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">URL</label>
-              <n-input v-model:value="selectedNode.data.url" placeholder="https://api.example.com" class="mt-1" />
+              <n-input v-model:value="nodeData.url" placeholder="https://api.example.com" class="mt-1" />
             </div>
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">超时时间(秒)</label>
-              <n-input-number v-model:value="selectedNode.data.timeout" :min="1" :max="60" class="mt-1 w-full" />
+              <n-input-number v-model:value="nodeData.timeout" :min="1" :max="60" class="mt-1 w-full" />
             </div>
           </template>
 
@@ -372,12 +372,12 @@
           <template v-if="selectedNode.type === 'code'">
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">语言</label>
-              <n-select v-model:value="selectedNode.data.language" :options="codeLanguages" class="mt-1" />
+              <n-select v-model:value="nodeData.language" :options="codeLanguages" class="mt-1" />
             </div>
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">代码</label>
               <n-input
-                v-model:value="selectedNode.data.code"
+                v-model:value="nodeData.code"
                 type="textarea"
                 placeholder="# Python 代码&#10;result = input.get('text', '')"
                 :autosize="{ minRows: 6, maxRows: 15 }"
@@ -390,15 +390,15 @@
           <template v-if="selectedNode.type === 'transform'">
             <div>
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">转换类型</label>
-              <n-select v-model:value="selectedNode.data.transformType" :options="transformTypes" class="mt-1" />
+              <n-select v-model:value="nodeData.transformType" :options="transformTypes" class="mt-1" />
             </div>
-            <div v-if="selectedNode.data.transformType === 'json_extract'">
+            <div v-if="nodeData?.transformType === 'json_extract'">
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">JSON路径</label>
-              <n-input v-model:value="selectedNode.data.jsonPath" placeholder="$.data.result" class="mt-1" />
+              <n-input v-model:value="nodeData.jsonPath" placeholder="$.data.result" class="mt-1" />
             </div>
-            <div v-if="selectedNode.data.transformType === 'regex_extract'">
+            <div v-if="nodeData?.transformType === 'regex_extract'">
               <label class="text-sm font-medium text-gray-600 dark:text-gray-300">正则表达式</label>
-              <n-input v-model:value="selectedNode.data.pattern" placeholder="[0-9]+" class="mt-1" />
+              <n-input v-model:value="nodeData.pattern" placeholder="[0-9]+" class="mt-1" />
             </div>
           </template>
 
@@ -579,7 +579,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { VueFlow, useVueFlow, MarkerType } from '@vue-flow/core'
+import { VueFlow, useVueFlow, MarkerType, type Connection } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
@@ -594,7 +594,7 @@ import {
 } from '@vicons/ionicons5'
 
 import { useWorkflowStore } from '@/stores/workflow'
-import { getWorkflow, createWorkflow, updateWorkflow, executeWorkflow as execWorkflow } from '@/api/workflow'
+import { getWorkflow, createWorkflow, updateWorkflow, executeWorkflow as execWorkflow, type WorkflowNode, type WorkflowEdge, type WorkflowConfig } from '@/api/workflow'
 import { useDedupedMessage } from '@/utils/message'
 
 // 节点组件
@@ -731,6 +731,7 @@ const edges = computed({
 
 const selectedNodeId = computed(() => workflowStore.selectedNode?.id)
 const selectedNode = computed(() => workflowStore.selectedNode)
+const nodeData = computed(() => (selectedNode.value?.data ?? {}) as Record<string, any>) // eslint-disable-line @typescript-eslint/no-explicit-any -- Naive UI v-model bindings require any for index-signature types
 const executionResults = computed(() => workflowStore.executionResults)
 const executionLogs = computed(() => workflowStore.executionLogs)
 const finalOutput = computed(() => workflowStore.finalOutput)
@@ -760,7 +761,7 @@ const statusText = computed(() => {
   return map[executionStatus.value] || '未知'
 })
 
-const nodeColor = (node: any) => {
+const nodeColor = (node: { type?: string }) => {
   const colorMap: Record<string, string> = {
     input: '#3b82f6',
     output: '#10b981',
@@ -774,14 +775,14 @@ const nodeColor = (node: any) => {
     api_call: '#0ea5e9',
     transform: '#14b8a6'
   }
-  return colorMap[node.type] || '#6b7280'
+  return colorMap[node.type ?? ''] || '#6b7280'
 }
 
 // 模板加载
 const loadTemplate = (type: string) => {
   workflowStore.clearWorkflow()
 
-  const templates: Record<string, any> = {
+  const templates: Record<string, { name: string; nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }> = {
     rag: {
       name: 'RAG 问答流程',
       nodes: [
@@ -845,8 +846,8 @@ const loadTemplate = (type: string) => {
   const template = templates[type]
   if (template) {
     workflowStore.workflowName = template.name
-    workflowStore.setNodes(template.nodes)
-    workflowStore.setEdges(template.edges)
+    workflowStore.setNodes(template.nodes as unknown as WorkflowNode[])
+    workflowStore.setEdges(template.edges as unknown as WorkflowEdge[])
     message.success('模板加载成功')
   }
 }
@@ -874,14 +875,14 @@ const getNodeLabel = (type: string) => {
   return labelMap[type] || type
 }
 
-const formatOutput = (output: any) => {
+const formatOutput = (output: unknown) => {
   if (typeof output === 'string') return output
-  if (output?.content) return output.content
+  if (output && typeof output === 'object' && 'content' in output) return (output as Record<string, unknown>).content
   return JSON.stringify(output, null, 2)
 }
 
 // 拖拽处理
-const onDragStart = (event: DragEvent, node: any) => {
+const onDragStart = (event: DragEvent, node: Record<string, unknown>) => {
   if (event.dataTransfer) {
     event.dataTransfer.setData('application/vueflow', JSON.stringify(node))
     event.dataTransfer.effectAllowed = 'move'
@@ -899,7 +900,7 @@ const onDrop = (event: DragEvent) => {
     y: event.clientY - rect.top
   }
 
-  const defaultData: Record<string, any> = {
+  const defaultData: Record<string, unknown> = {
     systemPrompt: '', temperature: 0.7, maxTokens: 2048,
     prompt: '', topK: 5, scoreThreshold: 0.5, condition: '',
     memoryType: 'short_term', action: 'store',
@@ -907,29 +908,29 @@ const onDrop = (event: DragEvent) => {
     language: 'python', code: '', transformType: 'json_extract'
   }
 
-  const newNode = {
+  const newNode: WorkflowNode = {
     id: `${nodeType.type}_${Date.now()}`,
     type: nodeType.type,
     position,
-    data: { label: nodeType.label, ...defaultData }
+    data: { label: nodeType.label, type: nodeType.type, ...defaultData }
   }
 
   workflowStore.addNode(newNode)
 }
 
-const onNodeClick = (event: any) => {
+const onNodeClick = (event: { node: WorkflowNode }) => {
   workflowStore.selectNode(event.node)
 }
 
-const onConnect = (params: any) => {
-  const newEdge = {
+const onConnect = (params: Connection) => {
+  const newEdge: WorkflowEdge = {
     id: `edge_${Date.now()}`,
     source: params.source,
     target: params.target,
-    sourceHandle: params.sourceHandle,
-    targetHandle: params.targetHandle,
+    sourceHandle: params.sourceHandle ?? undefined,
+    targetHandle: params.targetHandle ?? undefined,
     animated: true,
-    markerEnd: MarkerType.ArrowClosed
+    markerEnd: MarkerType.ArrowClosed as unknown as string
   }
   workflowStore.addEdge(newEdge)
 }
@@ -958,24 +959,25 @@ const saveWorkflow = async () => {
 
   saving.value = true
   try {
-    const flowData = workflowStore.getFlowData()
+    const flowData = workflowStore.getFlowData() as unknown as WorkflowConfig
 
     if (workflowStore.currentWorkflowId) {
       await updateWorkflow(workflowStore.currentWorkflowId, {
         name: workflowStore.workflowName,
-        flow_data: flowData as any
+        flow_data: flowData
       })
       message.success('更新成功')
     } else {
       const res = await createWorkflow({
         name: workflowStore.workflowName,
-        flow_data: flowData as any
+        flow_data: flowData
       })
       workflowStore.currentWorkflowId = res.data?.data?.id
       message.success('保存成功')
     }
-  } catch (error: any) {
-    message.error(error.response?.data?.detail || '保存失败')
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { detail?: string } } }
+    message.error(err.response?.data?.detail || '保存失败')
   } finally {
     saving.value = false
   }
@@ -1032,8 +1034,9 @@ const executeWorkflow = async () => {
       workflowStore.addExecutionLog('✅ 工作流执行完成')
     }
 
-  } catch (error: any) {
-    workflowStore.addExecutionLog(`❌ 执行失败: ${error.message}`)
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : '未知错误'
+    workflowStore.addExecutionLog(`❌ 执行失败: ${errMsg}`)
     message.error('执行失败')
   } finally {
     executing.value = false

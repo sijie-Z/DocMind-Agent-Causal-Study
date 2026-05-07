@@ -1,12 +1,20 @@
+interface WebSocketSource {
+  fileId?: number
+  filename?: string
+  relevanceScore?: number
+  snippet?: string
+}
+
 interface WebSocketMessage {
   type: 'message' | 'error' | 'connect' | 'disconnect' | 'notification'
   content?: string
   conversationId?: number | string
   messageId?: string
-  sources?: any[]
+  sources?: WebSocketSource[]
   title?: string
   fileIds?: string[]
-  payload?: Record<string, any>
+  payload?: Record<string, unknown>
+  is_cached?: boolean
 }
 
 import { getToken } from '@/utils/auth'
@@ -32,8 +40,6 @@ class WebSocketService {
   }
 
   connect(userId: number, conversationId?: number | string) {
-    console.log(`[WS] Attempting to connect. userId: ${userId}, currentStatus: ${this.connectionStatus}`)
-    
     // 0. 安全检查
     if (!userId || userId === 0 || String(userId) === '0') {
       console.warn('[WS] Connect aborted: Invalid userId', userId)
@@ -41,7 +47,6 @@ class WebSocketService {
     }
 
     if (this.ws && (this.connectionStatus === 'connected' || this.connectionStatus === 'connecting')) {
-      console.log('[WS] Already connected or connecting, skipping...')
       return
     }
 
@@ -61,9 +66,7 @@ class WebSocketService {
     const cleanToken = rawToken.replace(/"/g, '')
 
     const wsUrl = `${this.getWsBaseUrl()}/api/v1/chat/ws?token=${cleanToken}&user_id=${userId}${conversationId ? `&conversation_id=${conversationId}` : ''}`
-    
-    console.log("[WS] 物理直连地址 (已清洗 Token):", wsUrl.split('?')[0])
-    
+
     try {
       this.manualDisconnect = false
       this.ws = new WebSocket(wsUrl)
@@ -78,7 +81,6 @@ class WebSocketService {
     if (!this.ws) return
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected')
       this.connectionStatus = 'connected'
       this.reconnectAttempts = 0
       this.emit('connect', { type: 'connect' })
@@ -87,15 +89,13 @@ class WebSocketService {
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as WebSocketMessage
-        console.log('WebSocket message received:', data)
         this.handleMessage(data)
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
+        console.error('[WS] Failed to parse message:', error)
       }
     }
 
     this.ws.onclose = (event) => {
-      console.log(`[WS Close] WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}, WasClean: ${event.wasClean}`)
       this.connectionStatus = 'disconnected'
       this.emit('disconnect', { type: 'disconnect' })
       if (!this.manualDisconnect) {
@@ -167,13 +167,11 @@ class WebSocketService {
 
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('Max reconnection attempts reached')
       return
     }
 
     this.reconnectAttempts++
-    console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}`)
-    
+
     setTimeout(() => {
       if (this.currentUserId > 0) {
         this.connect(this.currentUserId) 

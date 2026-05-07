@@ -239,7 +239,7 @@ const notifications = computed(() => notificationStore.headerItems)
 const unreadCount = computed(() => notificationStore.unreadCount)
 
 
-const navigateByNotification = async (notification: Notification & Record<string, any>) => {
+const navigateByNotification = async (notification: Notification) => {
   const routeName = notification.target_route as string | undefined
   const targetId = notification.target_id as string | number | undefined
 
@@ -270,7 +270,7 @@ const handleNotificationClick = async (notification: Notification) => {
     }
   }
 
-  await navigateByNotification(notification as Notification & Record<string, any>)
+  await navigateByNotification(notification as Notification)
 }
 
 const handleMarkAllRead = async () => {
@@ -292,7 +292,7 @@ const handleDeleteNotification = async (notificationId: number) => {
   }
 }
 
-const searchInputRef = ref<any>(null)
+const searchInputRef = ref<HTMLElement | null>(null)
 
 const handleKeydown = (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {

@@ -81,6 +81,8 @@ import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useDedupedMessage } from '@/utils/message'
 import { getConversationMessages, clearConversationMessages } from '@/api/chat'
+import type { Conversation } from '@/api/conversation'
+import type { ChatMessage } from '@/types/chat'
 import { getDocumentDetail, getDocumentContent } from '@/api/knowledge'
 import { getToken } from '@/utils/auth'
 
@@ -142,10 +144,10 @@ const suggestions = computed(() => [
   { title: t('chat.suggestions.travel'), desc: t('chat.suggestions.travelDesc') }
 ])
 
-const useSuggestion = (s: any) => { inputMessage.value = s.title + '，' + s.desc }
+const useSuggestion = (s: { title: string; desc: string }) => { inputMessage.value = s.title + '，' + s.desc }
 
 const isBoundMode = computed(() => {
-  return chatStore.currentConversation?.settings?.bound_document_ids?.length > 0
+  return (chatStore.currentConversation?.settings?.bound_document_ids?.length ?? 0) > 0
 })
 
 const handleUnbind = async () => {
@@ -172,7 +174,7 @@ const newConversation = () => {
   if (window.innerWidth < 768) sidebarOpen.value = false
 }
 
-const handleSelectConversation = async (conv: any) => {
+const handleSelectConversation = async (conv: Conversation) => {
   if (currentConversationId.value === conv.id) return
   router.push({ query: { conversation_id: conv.id } })
   await loadConversation(conv.id)
@@ -184,16 +186,17 @@ const loadConversation = async (id: string) => {
   try {
     const res = await getConversationMessages(id)
     if (res.data) {
-      const data = (res.data as any).data || res.data
-      const msgs = data.messages || []
+      const rawData = res.data as unknown as Record<string, unknown>
+      const data = (rawData?.data as Record<string, unknown>) || rawData
+      const msgs = (data.messages as Record<string, unknown>[]) || []
       chatStore.setCurrentConversation({
-        id: data.id, title: data.title, userId: userStore.userInfo?.id || 0,
-        createdAt: data.created_at, updatedAt: data.updated_at || data.created_at,
-        settings: data.settings
+        id: data.id as string, title: data.title as string, userId: userStore.userInfo?.id || 0,
+        createdAt: data.created_at as string, updatedAt: (data.updated_at as string) || (data.created_at as string),
+        settings: data.settings as Record<string, unknown> | undefined
       })
-      messages.value = msgs.map((m: any) => ({
-        id: m.id, content: m.content, messageType: m.message_type || m.messageType,
-        conversationId: data.id, createdAt: m.created_at, sources: m.sources, files: m.files
+      messages.value = msgs.map((m: Record<string, unknown>) => ({
+        id: m.id as string, content: m.content as string, messageType: (m.message_type || m.messageType) as 'user' | 'assistant',
+        conversationId: data.id as string, createdAt: m.created_at as string, sources: m.sources as ChatMessage['sources'], files: m.files as ChatMessage['files']
       }))
     }
   } catch {
@@ -219,14 +222,27 @@ const clearChat = async () => {
 
 const showPreviewModal = ref(false)
 const previewLoading = ref(false)
-const previewDoc = ref<any>(null)
+const previewDoc = ref<{
+  id?: string
+  title?: string
+  filename?: string
+  file_name?: string
+  file_type?: string
+  file_size?: number
+  source?: string
+  created_at?: string
+  description?: string
+  summary?: string
+  keywords?: string[]
+  suggested_tags?: string[]
+} | undefined>(undefined)
 const previewContent = ref('')
 
 const handlePreviewFile = async (fileId?: string) => {
   if (!fileId) return
   showPreviewModal.value = true
   previewLoading.value = true
-  previewDoc.value = null
+  previewDoc.value = undefined
   previewContent.value = ''
   try {
     const [statusRes, contentRes] = await Promise.all([

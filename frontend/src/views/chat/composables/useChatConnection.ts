@@ -5,7 +5,8 @@ import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { wsService } from '@/utils/websocket'
 import { sseService } from '@/utils/sseService'
-import type { ChatMessage } from '@/types/chat'
+import type { ChatMessage, KnowledgeSource } from '@/types/chat'
+import type { WebSocketMessage } from '@/utils/websocket'
 
 export function useChatConnection(
   messages: { value: ChatMessage[] },
@@ -50,13 +51,13 @@ export function useChatConnection(
 
     wsService.on('connect', () => { connectionStatus.value = 'connected' })
     wsService.on('disconnect', () => { connectionStatus.value = 'disconnected' })
-    wsService.on('error', (data: any) => {
+    wsService.on('error', (data: WebSocketMessage) => {
       connectionStatus.value = 'error'
       if (data.content) message.error(data.content)
       isLoading.value = false
     })
 
-    wsService.on('chunk', (data: any) => {
+    wsService.on('chunk', (data: WebSocketMessage) => {
       isRetrieving.value = false
       if (data.conversationId && (!chatStore.currentConversation || chatStore.currentConversation.id !== data.conversationId)) {
         chatStore.setCurrentConversation({
@@ -72,12 +73,12 @@ export function useChatConnection(
       if (lastMsg && lastMsg.messageType === 'assistant' && lastMsg.id === data.messageId) {
         lastMsg.content += (data.content || '')
       } else {
-        messages.value.push({ id: data.messageId, content: data.content || '', messageType: 'assistant', conversationId: data.conversationId || 0, sources: data.sources })
+        messages.value.push({ id: data.messageId, content: data.content || '', messageType: 'assistant', conversationId: data.conversationId || 0, sources: data.sources as KnowledgeSource[] | undefined })
       }
       scrollToBottom()
     })
 
-    wsService.on('message', (data: any) => {
+    wsService.on('message', (data: WebSocketMessage) => {
       if (data.content) {
         isRetrieving.value = false
         const lastMsg = messages.value[messages.value.length - 1]
@@ -88,13 +89,13 @@ export function useChatConnection(
             content: data.content,
             messageType: 'assistant',
             conversationId: data.conversationId || chatStore.currentConversation?.id || 0,
-            sources: data.sources,
+            sources: data.sources as KnowledgeSource[] | undefined,
             isCached
-          } as any)
+          })
         } else {
           lastMsg.content = data.content
-          if (data.sources) lastMsg.sources = data.sources
-          if (isCached) (lastMsg as any).isCached = true
+          if (data.sources) lastMsg.sources = data.sources as KnowledgeSource[]
+          if (isCached) lastMsg.isCached = true
         }
         isLoading.value = false
         scrollToBottom()

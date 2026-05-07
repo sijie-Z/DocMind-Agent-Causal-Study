@@ -12,7 +12,7 @@
       <n-spin v-if="executing" size="small" class="ml-auto" />
     </div>
     <div class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{{ data.systemPrompt || 'AI 助手' }}</div>
-    <div class="mt-2 text-xs text-gray-400">温度: {{ (data.temperature || 0.7).toFixed(1) }}</div>
+    <div class="mt-2 text-xs text-gray-400">温度: {{ ((data.temperature as number) || 0.7).toFixed(1) }}</div>
   </div>
 </template>
 
@@ -22,7 +22,7 @@ import { NIcon, NSpin } from 'naive-ui'
 import { ChatbubblesOutline } from '@vicons/ionicons5'
 
 const props = defineProps<{
-  data: Record<string, any>
+  data: Record<string, unknown>
   model: string
   color: 'green' | 'blue' | 'orange'
   selected?: boolean

@@ -18,5 +18,5 @@
 import { NIcon, NSpin } from 'naive-ui'
 import { GitBranchOutline } from '@vicons/ionicons5'
 
-defineProps<{ data: Record<string, any>; selected?: boolean; executing?: boolean }>()
+defineProps<{ data: Record<string, unknown>; selected?: boolean; executing?: boolean }>()
 </script>

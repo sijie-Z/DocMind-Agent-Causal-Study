@@ -2,11 +2,18 @@ import request from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 
 // 工作流节点类型
+export interface WorkflowNodeData {
+  label: string
+  type: string
+  config?: Record<string, unknown>
+  [key: string]: unknown
+}
+
 export interface WorkflowNode {
   id: string
   type: string
   position: { x: number; y: number }
-  data: Record<string, any>
+  data: WorkflowNodeData
 }
 
 export interface WorkflowEdge {
@@ -42,17 +49,25 @@ export interface NodeDefinition {
   name: string
   category: string
   description?: string
-  default_config?: Record<string, any>
-  input_schema?: Record<string, any>
-  output_schema?: Record<string, any>
+  default_config?: Record<string, unknown>
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
   icon?: string
+}
+
+export interface NodeResultItem {
+  node_id: string
+  status: 'pending' | 'running' | 'success' | 'failed'
+  output?: unknown
+  error?: string
+  duration_ms?: number
 }
 
 export interface ExecutionResult {
   execution_id: number
   status: string
-  output?: any
-  node_results?: any[]
+  output?: Record<string, unknown>
+  node_results?: NodeResultItem[]
 }
 
 // API 函数
@@ -76,12 +91,12 @@ export const deleteWorkflow = async (id: number) => {
   return request.delete(`/workflows/${id}`)
 }
 
-export const executeWorkflow = async (id: number, inputData?: Record<string, any>) => {
+export const executeWorkflow = async (id: number, inputData?: Record<string, unknown>) => {
   return request.post(`/workflows/${id}/execute`, { workflow_id: id, input_data: inputData, stream: false })
 }
 
 // 流式执行
-export const executeWorkflowStream = (id: number, inputData: Record<string, any>, onEvent: (event: string, data: any) => void) => {
+export const executeWorkflowStream = (id: number, inputData: Record<string, unknown>, onEvent: (event: string, data: ExecutionResult | NodeResultItem) => void) => {
   const eventSource = new EventSource(`/api/v1/workflows/${id}/execute?stream=true&input_data=${encodeURIComponent(JSON.stringify(inputData))}`)
 
   eventSource.onmessage = (e) => {

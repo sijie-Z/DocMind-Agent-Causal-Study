@@ -289,7 +289,7 @@
           :bordered="false"
           size="small"
           :row-class-name="highlightSensitiveRow"
-          :row-key="(row: any) => row.id"
+          :row-key="(row: AuditLogEntry) => row.id"
         />
       </div>
     </div>
@@ -320,8 +320,8 @@
 import { ref, onMounted, onUnmounted, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NTag } from 'naive-ui'
-import { getAuditLogs } from '@/api/user'
-import { getLLMStats, getRAGStats, getAdminSummary, getOrgSummary } from '@/api/monitoring'
+import { getAuditLogs, type AuditLogEntry } from '@/api/user'
+import { getLLMStats, getRAGStats, getAdminSummary, getOrgSummary, type OrgSummary } from '@/api/monitoring'
 import { formatDate } from '@/utils/format'
 import { CHART_COLORS } from '@/utils/chartTheme'
 import {
@@ -362,8 +362,8 @@ const ragStats = ref({
   trend: [] as number[]
 })
 
-const orgList = ref<any[]>([])
-const recentLogs = ref<any[]>([])
+const orgList = ref<OrgSummary[]>([])
+const recentLogs = ref<AuditLogEntry[]>([])
 
 const llmChartRef = ref<HTMLElement | null>(null)
 const ragChartRef = ref<HTMLElement | null>(null)
@@ -377,19 +377,19 @@ const auditColumns = [
     title: t('dashboard.time'),
     key: 'created_at',
     width: 170,
-    render: (row: any) => h('span', { class: 'text-gray-600 dark:text-gray-300' }, formatDate(row.created_at))
+    render: (row: AuditLogEntry) => h('span', { class: 'text-gray-600 dark:text-gray-300' }, formatDate(row.created_at))
   },
   {
     title: t('dashboard.user'),
     key: 'user_id',
     width: 100,
-    render: (row: any) => h('span', { class: 'font-medium' }, row.username || `ID:${row.user_id}`)
+    render: (row: AuditLogEntry) => h('span', { class: 'font-medium' }, row.username || `ID:${row.user_id}`)
   },
   {
     title: t('dashboard.action'),
     key: 'action',
     width: 160,
-    render: (row: any) => {
+    render: (row: AuditLogEntry) => {
       const isSensitive = SENSITIVE_ACTIONS.some(a => row.action?.includes(a))
       return h(NTag, {
         type: isSensitive ? 'error' : 'default',
@@ -407,11 +407,11 @@ const auditColumns = [
     title: 'IP',
     key: 'ip_address',
     width: 120,
-    render: (row: any) => h('code', { class: 'text-xs text-gray-500' }, row.ip_address || '-')
+    render: (row: AuditLogEntry) => h('code', { class: 'text-xs text-gray-500' }, row.ip_address || '-')
   }
 ]
 
-function highlightSensitiveRow(row: any) {
+function highlightSensitiveRow(row: AuditLogEntry) {
   const isSensitive = SENSITIVE_ACTIONS.some(a => row.action?.includes(a))
   return isSensitive ? 'bg-red-50/70 dark:bg-red-900/10' : ''
 }
@@ -492,8 +492,10 @@ onMounted(async () => {
       }
     }
 
-    if ((auditRes.data as any)?.data?.items) {
-      recentLogs.value = (auditRes.data as any).data.items
+    const auditData = auditRes.data as unknown as Record<string, unknown>
+    const auditInner = auditData?.data as Record<string, unknown> | undefined
+    if (auditInner?.items) {
+      recentLogs.value = auditInner.items as AuditLogEntry[]
     }
 
     if (llmRes.data) {

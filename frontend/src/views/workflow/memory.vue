@@ -239,15 +239,43 @@ import {
 import { getAgentMemory, recallMemory, clearMemory } from '@/api/memory'
 import dayjs from 'dayjs'
 
+interface MemoryItem {
+  id: string
+  content: string
+  created_at: string
+  importance: number
+  access_count: number
+  memory_type?: string
+  [key: string]: unknown
+}
+
+interface InsightItem {
+  content?: string
+  created_at?: string
+  [key: string]: unknown
+}
+
+interface PatternItem {
+  pattern?: string
+  [key: string]: unknown
+}
+
+interface LessonItem {
+  lesson?: string
+  trigger?: string
+  solution?: string
+  [key: string]: unknown
+}
+
 interface MemoryData {
   agent_id: string
-  short_term: any[]
-  long_term: Record<string, any[]>
-  working: Record<string, any>
+  short_term: MemoryItem[]
+  long_term: Record<string, MemoryItem[]>
+  working: Record<string, unknown>
   reflective: {
-    insights: any[]
-    patterns: any[]
-    lessons: any[]
+    insights: InsightItem[]
+    patterns: PatternItem[]
+    lessons: LessonItem[]
   }
   interaction_count: number
 }
@@ -258,7 +286,7 @@ const message = useMessage()
 const loading = ref(false)
 const searching = ref(false)
 const searchQuery = ref('')
-const searchResults = ref<any[]>([])
+const searchResults = ref<MemoryItem[]>([])
 const memoryData = ref<MemoryData | null>(null)
 
 const longTermCount = computed(() => {
@@ -328,8 +356,8 @@ const confirmClearAll = () => {
   })
 }
 
-const formatTime = (time: string) => {
-  return dayjs(time).format('MM-DD HH:mm:ss')
+const formatTime = (time?: string) => {
+  return time ? dayjs(time).format('MM-DD HH:mm:ss') : '-'
 }
 
 onMounted(() => {

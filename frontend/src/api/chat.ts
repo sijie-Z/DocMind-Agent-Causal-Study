@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
-import type { ChatMessage } from '@/types/chat'
+import type { ChatMessage, KnowledgeSource } from '@/types/chat'
 import type { ApiResponse } from '@/types/common'
 
 // 发送消息
@@ -8,7 +8,7 @@ export function sendMessage(data: { message: string; conversationId?: number }) 
   const orgId = useUserStore().currentOrgId || 1
   return request.post<ApiResponse<{
     response: string
-    sources: any[]
+    sources: KnowledgeSource[]
   }>>('/chat/completions', {
     messages: [
         { role: 'user', content: data.message }

@@ -15,7 +15,7 @@
               {{ doc?.source || '知识库上传' }}
             </n-tag>
             <n-tag v-if="doc?.file_size" size="small" quaternary round>
-              {{ (doc.file_size / 1024).toFixed(2) }} KB
+              {{ ((doc.file_size as number) / 1024).toFixed(2) }} KB
             </n-tag>
           </div>
           <div class="text-xs text-gray-400">上传于: {{ doc?.created_at ? new Date(doc.created_at).toLocaleString() : '-' }}</div>
@@ -51,7 +51,7 @@
     <template #footer>
       <div class="flex justify-end gap-3">
         <n-button @click="show = false">关闭</n-button>
-        <n-button type="primary" secondary @click="$emit('download', doc?.id)">下载文档</n-button>
+        <n-button type="primary" secondary @click="$emit('download', doc?.id as string)">下载文档</n-button>
       </div>
     </template>
   </n-modal>
@@ -63,7 +63,20 @@ import { computed } from 'vue'
 const props = defineProps<{
   show: boolean
   loading: boolean
-  doc: any
+  doc?: {
+    id?: string
+    title?: string
+    filename?: string
+    file_name?: string
+    file_type?: string
+    file_size?: number
+    source?: string
+    created_at?: string
+    description?: string
+    summary?: string
+    keywords?: string[]
+    suggested_tags?: string[]
+  }
   content: string
 }>()
 

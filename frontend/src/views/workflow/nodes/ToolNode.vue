@@ -19,13 +19,13 @@ import { computed } from 'vue'
 import { NIcon, NSpin } from 'naive-ui'
 import { SearchOutline, MusicalNotesOutline } from '@vicons/ionicons5'
 
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, unknown> = {
   SearchOutline,
   MusicalNotesOutline
 }
 
 const props = defineProps<{
-  data: Record<string, any>
+  data: Record<string, unknown>
   name: string
   icon: string
   selected?: boolean

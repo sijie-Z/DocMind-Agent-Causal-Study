@@ -69,7 +69,7 @@
             {{ conv.title || t('chat.defaultTitle') }}
           </h3>
           <p class="text-xs opacity-60 truncate flex justify-between items-center font-light">
-            <span>{{ formatDate(conv.updatedAt || conv.created_at) }}</span>
+            <span>{{ formatDate(conv.updated_at || conv.created_at) }}</span>
           </p>
         </div>
 
@@ -97,6 +97,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import type { Conversation } from '@/api/conversation'
 import { format } from 'date-fns'
 import {
   AddOutline, RefreshOutline, ChatboxOutline, ChatboxEllipsesOutline, TrashOutline
@@ -106,7 +107,7 @@ const { t } = useI18n()
 
 defineProps<{
   sidebarOpen: boolean
-  conversations: any[]
+  conversations: Conversation[]
   isListLoading: boolean
   currentConversationId: string | number | undefined
 }>()
@@ -114,7 +115,7 @@ defineProps<{
 defineEmits<{
   newConversation: []
   refresh: []
-  selectConversation: [conv: any]
+  selectConversation: [conv: Conversation]
   deleteConversation: [id: string]
 }>()
 

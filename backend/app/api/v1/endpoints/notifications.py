@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, WebSocket, W
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, desc, func
 from pydantic import BaseModel, ConfigDict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import json
 
 from app.core.database import get_db
@@ -304,10 +304,9 @@ async def create_notification(
     target_id: Optional[str] = None,
 ):
     """创建通知（内部使用）并推送实时消息，同一 title+user 1 分钟内去重"""
-    from datetime import datetime, timedelta
     from sqlalchemy import select, and_
 
-    cutoff = datetime.utcnow() - timedelta(minutes=1)
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=1)
     existing = (
         await db.execute(
             select(Notification).where(

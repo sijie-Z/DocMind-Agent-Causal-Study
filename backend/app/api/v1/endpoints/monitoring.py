@@ -12,7 +12,7 @@ import logging
 import hashlib
 import json
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 
 logger = logging.getLogger(__name__)
@@ -516,7 +516,7 @@ async def health_check(
 
     return {
         "status": overall_status,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "services": services,
     }
 

@@ -412,10 +412,11 @@ const saveUser = async () => {
     await formRef.value?.validate()
     saving.value = true
     if (editingUser.value) {
-      await updateUser(editingUser.value.id, userForm.value as any)
+      const { username: _, ...updateData } = userForm.value
+      await updateUser(editingUser.value.id, updateData)
       message.success(t('common.success'))
     } else {
-      await createUser(userForm.value as any)
+      await createUser(userForm.value)
       message.success(t('common.success'))
     }
     closeCreateModal()
@@ -452,7 +453,7 @@ const handleDelete = async (id: number) => {
   }
 }
 
-const handleSelectionChange = (keys: any[]) => {
+const handleSelectionChange = (keys: (string | number)[]) => {
   selectedIds.value = keys.map(k => Number(k))
 }
 

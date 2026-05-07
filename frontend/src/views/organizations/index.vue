@@ -328,6 +328,7 @@ import {
   getOrganizationMembers,
   getOrganizationDocuments
 } from '@/api/organization'
+import type { OrganizationMember, OrganizationDocument } from '@/types/api'
 
 // 1. 定义接口
 interface Organization {
@@ -357,8 +358,8 @@ const selectedIds = ref<number[]>([])
 const showCreateModal = ref(false)
 const showDetailDrawer = ref(false)
 const selectedOrg = ref<Organization | null>(null)
-const orgMembers = ref<any[]>([])
-const orgDocuments = ref<any[]>([])
+const orgMembers = ref<OrganizationMember[]>([])
+const orgDocuments = ref<OrganizationDocument[]>([])
 const loadingDetails = ref(false)
 const editingOrganization = ref<Organization | null>(null)
 const formRef = ref<FormInst | null>(null)
@@ -673,10 +674,11 @@ const saveOrganization = async () => {
     const formData = { ...organizationForm.value }
     
     if (editingOrganization.value) {
-      await updateOrganization(editingOrganization.value.id, formData as any)
+      await updateOrganization(editingOrganization.value.id, formData)
       message.success(t('org.updateSuccess'))
     } else {
-      await createOrganization(formData as any)
+      const { name, color, description, parent_id } = formData
+      await createOrganization({ name, color, description, parent_id })
       message.success(t('org.createSuccess'))
     }
     

@@ -171,7 +171,7 @@
         :data="auditLogs"
         :loading="auditLoading"
         :pagination="auditPagination"
-        :row-key="(row: any) => row.id"
+        :row-key="(row: AuditLogEntry) => row.id"
         @update:page="handleAuditPageChange"
         size="small"
       />
@@ -184,7 +184,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, h } from 'vue'
 import { useDedupedMessage } from '@/utils/message'
 import { NTag } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { getAuditLogs } from '@/api/user'
+import { getAuditLogs, type AuditLogEntry } from '@/api/user'
 import { RefreshOutline, PulseOutline, GitNetworkOutline, BookOutline, WarningOutline } from '@vicons/ionicons5'
 import * as echarts from 'echarts'
 import { getMonitoringDashboard, getMonitoringAlerts, getMetrics } from '@/api/monitoring'
@@ -204,7 +204,7 @@ interface AppMetrics {
   request_count: number
   error_count: number
   response_time: number
-  api_endpoints: Record<string, any>
+  api_endpoints: Record<string, unknown>
   database_connections: number
   redis_connections: number
   elasticsearch_health: string
@@ -285,7 +285,7 @@ const notificationStatus = ref({
 })
 
 // 审计日志相关
-const auditLogs = ref<any[]>([])
+const auditLogs = ref<AuditLogEntry[]>([])
 const auditLoading = ref(false)
 const auditPagination = reactive({
   page: 1,
@@ -301,15 +301,15 @@ const auditColumns = [
     title: '动作',
     key: 'action',
     width: 150,
-    render(row: any) {
-      const typeMap: any = {
+    render(row: AuditLogEntry) {
+      const typeMap: Record<string, string> = {
         'login': 'success',
         'delete_file': 'error',
         'upload_file': 'info',
         'chat': 'warning'
       }
-      return h(NTag, { 
-        type: typeMap[row.action] || 'default', 
+      return h(NTag, {
+        type: (typeMap[row.action] || 'default') as 'success' | 'error' | 'info' | 'warning' | 'default',
         size: 'small',
         round: true
       }, { default: () => row.action })
@@ -322,7 +322,7 @@ const auditColumns = [
     title: '时间',
     key: 'created_at',
     width: 180,
-    render(row: any) {
+    render(row: AuditLogEntry) {
       return new Date(row.created_at).toLocaleString()
     }
   }
@@ -335,13 +335,14 @@ const fetchAuditLogs = async () => {
       skip: (auditPagination.page - 1) * auditPagination.pageSize,
       limit: auditPagination.pageSize
     })
-    const resData = res.data as any
-    if (resData?.success && resData?.data) {
-      auditLogs.value = resData.data.items
-      auditPagination.itemCount = resData.data.total
+    const resData = res.data as unknown as Record<string, unknown>
+    const innerData = resData?.data as Record<string, unknown> | undefined
+    if (resData?.success && innerData) {
+      auditLogs.value = innerData.items as AuditLogEntry[]
+      auditPagination.itemCount = innerData.total as number
     } else if (resData?.items) {
-      auditLogs.value = resData.items
-      auditPagination.itemCount = resData.total
+      auditLogs.value = resData.items as AuditLogEntry[]
+      auditPagination.itemCount = resData.total as number
     }
   } catch (err) {
     message.error('获取审计日志失败')
@@ -360,7 +361,7 @@ const alertColumns = computed(() => [
     title: t('monitoring.alert.level'),
     key: 'level',
     width: 80,
-    render(row: any) {
+    render(row: Alert) {
       const type = row.level === 'critical' ? 'error' : row.level === 'warning' ? 'warning' : 'info'
       const label = row.level === 'critical' ? t('monitoring.critical') : row.level === 'warning' ? t('monitoring.warning') : t('monitoring.info')
       return h(
@@ -378,7 +379,7 @@ const alertColumns = computed(() => [
     title: t('monitoring.alert.time'),
     key: 'timestamp',
     width: 180,
-    render(row: any) {
+    render(row: Alert) {
       return new Date(row.timestamp * 1000).toLocaleString()
     }
   },
@@ -487,17 +488,18 @@ const initCharts = () => {
   }
 }
 
-const updateCharts = (data: any) => {
-  if (data.trends?.system) {
-    const systemTrend = data.trends.system
+const updateCharts = (data: Record<string, unknown>) => {
+  const trends = data.trends as Record<string, unknown> | undefined
+  if (trends?.system) {
+    const systemTrend = trends.system as Array<Record<string, number>>
     if (cpuChart && systemTrend.length > 0) {
-      const cpuData = systemTrend.map((item: any) => [item.timestamp * 1000, item.cpu_percent])
+      const cpuData = systemTrend.map((item) => [item.timestamp * 1000, item.cpu_percent])
       cpuChart.setOption({
         series: [{ data: cpuData }]
       })
     }
     if (memoryChart && systemTrend.length > 0) {
-      const memoryData = systemTrend.map((item: any) => [item.timestamp * 1000, item.memory_percent])
+      const memoryData = systemTrend.map((item) => [item.timestamp * 1000, item.memory_percent])
       memoryChart.setOption({
         series: [{ data: memoryData }]
       })
@@ -509,12 +511,12 @@ const updateMetricsCharts = async () => {
   try {
     // 获取应用指标趋势
     const appMetricsResponse = await getMetrics('application', timeRange.value)
-    const appMetricsData = appMetricsResponse.data
-    
-    if (appMetricsData && appMetricsData.length > 0) {
+    const appMetricsData = appMetricsResponse.data?.metrics || []
+
+    if (appMetricsData.length > 0) {
       // 更新请求数趋势图
       if (requestChart) {
-        const requestData = appMetricsData.map((item: any) => [item.timestamp * 1000, item.request_count])
+        const requestData = (appMetricsData as unknown as Array<Record<string, number>>).map((item) => [item.timestamp * 1000, item.request_count])
         requestChart.setOption({
           series: [{ data: requestData }]
         })
@@ -522,7 +524,7 @@ const updateMetricsCharts = async () => {
       
       // 更新响应时间趋势图
       if (responseTimeChart) {
-        const responseTimeData = appMetricsData.map((item: any) => [item.timestamp * 1000, item.response_time])
+        const responseTimeData = (appMetricsData as unknown as Array<Record<string, number>>).map((item) => [item.timestamp * 1000, item.response_time])
         responseTimeChart.setOption({
           series: [{ data: responseTimeData }]
         })
@@ -531,12 +533,12 @@ const updateMetricsCharts = async () => {
     
     // 获取知识库指标趋势
     const kbMetricsResponse = await getMetrics('knowledge_base', timeRange.value)
-    const kbMetricsData = kbMetricsResponse.data
-    
-    if (kbMetricsData && kbMetricsData.length > 0) {
+    const kbMetricsData = kbMetricsResponse.data?.metrics || []
+
+    if (kbMetricsData.length > 0) {
       // 更新文档数趋势图
       if (documentChart) {
-        const documentData = kbMetricsData.map((item: any) => [item.timestamp * 1000, item.total_documents])
+        const documentData = (kbMetricsData as unknown as Array<Record<string, number>>).map((item) => [item.timestamp * 1000, item.total_documents])
         documentChart.setOption({
           series: [{ data: documentData }]
         })
@@ -578,7 +580,7 @@ const loadData = async () => {
     recentAlerts.value = alertsData.alerts || []
 
     // 更新图表
-    updateCharts(dashboardData)
+    updateCharts(dashboardData as unknown as Record<string, unknown>)
     
     // 更新时间范围相关的图表
     await updateMetricsCharts()

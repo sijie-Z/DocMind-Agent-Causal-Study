@@ -88,8 +88,8 @@ export const getDocumentContent = async (id: string): Promise<AxiosResponse<{ da
 }
 
 export const uploadKnowledgeBase = async (
-  data: FormData, 
-  onProgress?: (progressEvent: any) => void
+  data: FormData,
+  onProgress?: (progressEvent: { loaded: number; total?: number }) => void
 ): Promise<AxiosResponse<{ data: KnowledgeBase }>> => {
   return request.post('/documents/upload', data, {
     headers: {
@@ -116,7 +116,7 @@ export const batchDeleteKnowledgeBases = async (ids: string[]): Promise<void> =>
   return request.post('/knowledge/batch-delete', { document_ids: ids })
 }
 
-export const rebuildKnowledgeBase = async (id: string): Promise<AxiosResponse<ApiResponse<any>>> => {
+export const rebuildKnowledgeBase = async (id: string): Promise<AxiosResponse<ApiResponse<unknown>>> => {
   return request.post(`/knowledge/rebuild/${id}`)
 }
 

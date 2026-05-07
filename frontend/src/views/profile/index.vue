@@ -367,7 +367,7 @@
                           :options="themeOptions"
                           size="small"
                           style="width: 140px"
-                          @update:value="(val: string) => appStore.setTheme(val as any)"
+                          @update:value="(val: string) => appStore.setTheme(val as 'light' | 'dark')"
                         />
                       </div>
                     </div>
@@ -398,7 +398,7 @@
                   :columns="sessionColumns"
                   :data="sessions"
                   :pagination="sessionPagination"
-                  :row-key="(row: any) => row.id"
+                  :row-key="(row: UserSession) => row.id"
                   :bordered="false"
                   size="small"
                 />
@@ -409,7 +409,7 @@
                   :columns="auditColumns"
                   :data="auditLogs"
                   :pagination="auditPagination"
-                  :row-key="(row: any) => row.id"
+                  :row-key="(row: UserAuditLog) => row.id"
                   :bordered="false"
                   size="small"
                 />
@@ -468,6 +468,7 @@ interface UserInfo {
   full_name?: string
   phone?: string
   avatar?: string
+  avatar_url?: string
   role: 'admin' | 'user'
   status: 'active' | 'inactive'
   bio?: string
@@ -528,7 +529,7 @@ const sessionColumns = [
   {
     title: '设备信息',
     key: 'device_name',
-    render: (row: any) => {
+    render: (row: UserSession) => {
       const ua = row.user_agent || ''
       let deviceIcon = '💻'
       let deviceType = '桌面设备'
@@ -556,7 +557,7 @@ const sessionColumns = [
     title: 'IP地址',
     key: 'ip_address',
     width: 130,
-    render: (row: any) => h('div', { class: 'flex items-center gap-1' }, [
+    render: (row: UserSession) => h('div', { class: 'flex items-center gap-1' }, [
       h('code', { class: 'text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded font-mono' }, row.ip_address || '-'),
       row.ip_address ? h('n-tooltip', {}, {
         trigger: () => h('n-icon', { class: 'text-gray-400 cursor-help', size: 14 }, h('InformationCircleOutline')),
@@ -568,7 +569,7 @@ const sessionColumns = [
     title: '状态',
     key: 'is_active',
     width: 90,
-    render: (row: any) => h('span', {
+    render: (row: UserSession) => h('span', {
       class: [
         'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium',
         row.is_active
@@ -584,13 +585,13 @@ const sessionColumns = [
     title: '最后活跃',
     key: 'last_seen_at',
     width: 100,
-    render: (row: any) => h('span', { class: 'text-xs text-gray-500' }, row.last_seen_at ? formatDate(row.last_seen_at) : '-')
+    render: (row: UserSession) => h('span', { class: 'text-xs text-gray-500' }, row.last_seen_at ? formatDate(row.last_seen_at) : '-')
   },
   {
     title: '操作',
     key: 'actions',
     width: 200,
-    render: (row: any) => {
+    render: (row: UserSession) => {
       const buttons = []
       const isTrusted = trustedDevices.value.has(row.id)
 
@@ -638,7 +639,7 @@ const toggleTrust = (sessionId: number) => {
 }
 
 // 显示会话详情
-const showSessionDetail = (session: any) => {
+const showSessionDetail = (session: UserSession) => {
   const ua = session.user_agent || ''
   let deviceIcon = '💻'
   let deviceType = '桌面设备'
@@ -713,23 +714,23 @@ const auditColumns = [
   {
     title: '操作',
     key: 'action',
-    render: (row: any) => formatAuditAction(row.action)
+    render: (row: UserAuditLog) => formatAuditAction(row.action)
   },
   {
     title: '详情',
     key: 'detail',
     ellipsis: { tooltip: true },
-    render: (row: any) => row.detail || '-'
+    render: (row: UserAuditLog) => row.detail || '-'
   },
   {
     title: 'IP',
     key: 'ip_address',
-    render: (row: any) => row.ip_address || '-'
+    render: (row: UserAuditLog) => row.ip_address || '-'
   },
   {
     title: '时间',
     key: 'created_at',
-    render: (row: any) => row.created_at ? formatDate(row.created_at) : '-'
+    render: (row: UserAuditLog) => row.created_at ? formatDate(row.created_at) : '-'
   }
 ]
 
@@ -1008,7 +1009,7 @@ const passwordFormRules = {
 }
 
 // 头像上传
-const getApiBaseUrl = () => (import.meta as any).env.VITE_API_BASE_URL || ''
+const getApiBaseUrl = () => import.meta.env.VITE_API_BASE_URL || ''
 
 const normalizeAvatarUrl = (rawUrl?: string) => {
   if (!rawUrl) return ''
@@ -1030,8 +1031,9 @@ const normalizeAvatarUrl = (rawUrl?: string) => {
 const handleAvatarUpload = async ({ file, onFinish, onError }: UploadCustomRequestOptions) => {
   try {
     const response = await uploadAvatar(file.file as File)
-    const resData = response.data as any
-    const rawUrl = resData?.url || resData?.data?.url || resData?.data
+    const resData = response.data as Record<string, unknown>
+    const nestedData = resData?.data as Record<string, unknown> | undefined
+    const rawUrl = (resData?.url || nestedData?.url || nestedData) as string
 
     if (!rawUrl) {
       throw new Error('avatar url empty')
@@ -1043,13 +1045,13 @@ const handleAvatarUpload = async ({ file, onFinish, onError }: UploadCustomReque
 
     if (userInfo.value) {
       userInfo.value.avatar = finalUrl
-      ;(userInfo.value as any).avatar_url = finalUrl
+      userInfo.value.avatar_url = finalUrl
     }
 
     userStore.updateUserInfo({
       avatar: finalUrl,
       avatar_url: finalUrl
-    } as any)
+    })
 
     message.success(t('profile.upload.success'))
     onFinish()
@@ -1094,14 +1096,14 @@ const loadUserStats = async () => {
     const response = await getUserStats()
     const data = response.data
     if (data) {
-      stats.conversationCount = (data as any).conversation_count || 0
-      stats.messageCount = (data as any).message_count || 0
-      stats.fileUploadCount = (data as any).file_count || 0
-      stats.knowledgeBaseCount = (data as any).knowledge_count || 0
-      stats.activityTrend = (data as any).activity_trend || [0, 0, 0, 0, 0, 0, 0]
+      stats.conversationCount = data.conversation_count || 0
+      stats.messageCount = data.message_count || 0
+      stats.fileUploadCount = data.file_count || 0
+      stats.knowledgeBaseCount = data.knowledge_count || 0
+      stats.activityTrend = data.activity_trend || [0, 0, 0, 0, 0, 0, 0]
 
-      storageUsedBytes.value = Number((data as any).storage_used || 0)
-      storageLimitBytes.value = Number((data as any).storage_limit || storageLimitBytes.value || 1)
+      storageUsedBytes.value = Number(data.storage_used || 0)
+      storageLimitBytes.value = Number(data.storage_limit || storageLimitBytes.value || 1)
       if (!Number.isFinite(storageLimitBytes.value) || storageLimitBytes.value <= 0) {
         storageLimitBytes.value = 10 * 1024 * 1024 * 1024
       }
@@ -1219,8 +1221,9 @@ const generateApiKey = async () => {
   try {
     generatingApiKey.value = true
     const response = await apiGenerateKey()
-    if ((response.data as any)?.api_key) {
-      apiKey.value = (response.data as any).api_key
+    const resData = response.data as Record<string, unknown>
+    if (resData?.api_key) {
+      apiKey.value = resData.api_key as string
       message.success(t('profile.apiKeyGenerated'))
     }
   } catch (error: any) {

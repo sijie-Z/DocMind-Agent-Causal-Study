@@ -22,7 +22,7 @@ export function useChatAttachments() {
     while (retries < maxRetries) {
       try {
         const res = await getKnowledgeBase(docId)
-        const data = res.data?.data || (res.data as any)
+        const data = res.data?.data || (res.data as Record<string, unknown>)
         const status = data.status
         const rawStatus = data.raw_status || status
 
@@ -92,7 +92,7 @@ export function useChatAttachments() {
       formData.append('description', '来自聊天上传')
       
       const res = await uploadKnowledgeBase(formData)
-      const docId = res.data?.data?.id || (res.data as any).id
+      const docId = res.data?.data?.id || (res.data as Record<string, unknown>).id
       if (docId) {
         tempFile.id = String(docId)
         tempFile.status = 'parsing'

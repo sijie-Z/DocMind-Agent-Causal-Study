@@ -28,7 +28,7 @@ class NotificationSocketService {
   private pongTimeoutTimer: number | null = null
   private pongTimeout = 10000 // 10秒收不到 pong 则认为断开
 
-  private emitWsMetricEvent(payload: Record<string, any>) {
+  private emitWsMetricEvent(payload: Record<string, unknown>) {
     try {
       window.dispatchEvent(new CustomEvent('app:ws-metric', { detail: payload }))
     } catch {
@@ -74,7 +74,7 @@ class NotificationSocketService {
     const cleanToken = token.replace(/"/g, '')
     
     // 动态获取 WS URL
-    const baseUrl = (import.meta as any).env.VITE_API_BASE_URL || '/api/v1'
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
     let wsBaseUrl = ''
     if (baseUrl.startsWith('http')) {
       wsBaseUrl = baseUrl.replace(/^http/, 'ws')

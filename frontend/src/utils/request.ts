@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
-import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
+import axios, { type AxiosInstance, type AxiosResponse, type AxiosError, type InternalAxiosRequestConfig, type AxiosRequestHeaders } from 'axios'
+import type { Router } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { createDiscreteApi } from 'naive-ui'
@@ -7,6 +8,22 @@ import { getToken, getRefreshToken, setToken, setRefreshToken } from '@/utils/au
 
 // 创建独立的 UI API，用于在非组件环境下显示消息
 const { message } = createDiscreteApi(['message'])
+
+interface ApiMetricPayload {
+  kind: 'success' | 'error'
+  category?: string
+  method: string
+  url: string
+  status?: number
+  requestId?: string
+  durationMs?: number
+}
+
+interface ExtendedAxiosConfig extends InternalAxiosRequestConfig {
+  ['X-Request-ID']?: string
+  ['__request_start_time']?: number
+  _retry?: boolean
+}
 
 // 全局 toast 去重：同一内容 1.5s 内不重复弹出
 const _activeToasts = new Map<string, { timer: ReturnType<typeof setTimeout> }>()
@@ -20,14 +37,14 @@ function dedupMessage(type: 'success' | 'error' | 'warning' | 'info', content: s
   return msgInst
 }
 
-let router: any = null
+let router: Router | null = null
 let activeRequestCount = 0
 
 const REQUEST_ID_HEADER = 'X-Request-ID'
 const SILENT_ERROR_HEADER = 'X-Silent-Error'
 const REQUEST_START_TIME_KEY = '__request_start_time'
 
-function emitApiMetricEvent(payload: Record<string, any>) {
+function emitApiMetricEvent(payload: ApiMetricPayload) {
   try {
     window.dispatchEvent(new CustomEvent('app:api-metric', { detail: payload }))
   } catch {
@@ -59,49 +76,52 @@ function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`
 }
 
-function readHeaderValue(headers: any, key: string): string | undefined {
+function readHeaderValue(headers: AxiosRequestHeaders | Record<string, string>, key: string): string | undefined {
   if (!headers) return undefined
-  if (typeof headers.get === 'function') {
-    const v = headers.get(key) ?? headers.get(key.toLowerCase())
+  if (typeof (headers as AxiosRequestHeaders).get === 'function') {
+    const v = (headers as AxiosRequestHeaders).get(key) ?? (headers as AxiosRequestHeaders).get(key.toLowerCase())
     return v == null ? undefined : String(v)
   }
   const lower = key.toLowerCase()
-  const direct = headers[key] ?? headers[lower]
+  const direct = (headers as Record<string, string>)[key] ?? (headers as Record<string, string>)[lower]
   if (direct == null) return undefined
   return String(direct)
 }
 
-function setHeaderValue(headers: any, key: string, value: string) {
-  if (typeof headers?.set === 'function') {
-    headers.set(key, value)
+function setHeaderValue(headers: AxiosRequestHeaders | Record<string, string>, key: string, value: string) {
+  if (typeof (headers as AxiosRequestHeaders)?.set === 'function') {
+    (headers as AxiosRequestHeaders).set(key, value)
     return
   }
-  headers[key] = value
+  (headers as Record<string, string>)[key] = value
 }
 
-function shouldSilentError(headers: any): boolean {
+function shouldSilentError(headers: AxiosRequestHeaders | Record<string, string>): boolean {
   const value = readHeaderValue(headers, SILENT_ERROR_HEADER)
   if (value == null) return false
   const normalized = value.trim().toLowerCase()
   return normalized !== '' && normalized !== '0' && normalized !== 'false' && normalized !== 'no'
 }
 
-function getErrorRequestId(error: any): string | undefined {
+function getErrorRequestId(error: AxiosError): string | undefined {
+  const respHeaders = error?.response?.headers as AxiosRequestHeaders | undefined
+  const reqHeaders = error?.config?.headers as AxiosRequestHeaders | undefined
+  const data = error?.response?.data as Record<string, unknown> | undefined
   return (
-    readHeaderValue(error?.response?.headers, REQUEST_ID_HEADER) ||
-    (error?.response?.data?.request_id ? String(error.response.data.request_id) : undefined) ||
-    readHeaderValue(error?.config?.headers, REQUEST_ID_HEADER)
+    (respHeaders ? readHeaderValue(respHeaders, REQUEST_ID_HEADER) : undefined) ||
+    (data?.request_id ? String(data.request_id) : undefined) ||
+    (reqHeaders ? readHeaderValue(reqHeaders, REQUEST_ID_HEADER) : undefined)
   )
 }
 
-export function setRouter(routerInstance: any) {
+export function setRouter(routerInstance: Router) {
   router = routerInstance
 }
 
 // 创建axios实例
 const request: AxiosInstance = axios.create({
   // 统一基础路径为 /api/v1，避免后续手动拼接
-  baseURL: (import.meta as any).env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -111,9 +131,9 @@ const request: AxiosInstance = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
-    const headers: any = config.headers ?? {}
+    const headers: AxiosRequestHeaders = config.headers ?? {} as AxiosRequestHeaders
     config.headers = headers
-    ;(config as any)[REQUEST_START_TIME_KEY] = Date.now()
+    ;(config as ExtendedAxiosConfig)[REQUEST_START_TIME_KEY] = Date.now()
     const isAuthRequest = /\/auth\/(login|register|refresh)/.test(config.url ?? '')
     if (!isAuthRequest) showLoading()
     const rawToken = localStorage.getItem('docmind_token') || localStorage.getItem('paicongming_token') || getToken()
@@ -133,9 +153,9 @@ request.interceptors.request.use(
 
 let isRefreshing = false
 type PendingRequest = {
-  resolve: (value: any) => void
-  reject: (reason?: any) => void
-  originalRequest: any
+  resolve: (value: Promise<AxiosResponse>) => void
+  reject: (reason?: unknown) => void
+  originalRequest: InternalAxiosRequestConfig
 }
 let requestsQueue: PendingRequest[] = []
 
@@ -144,7 +164,7 @@ function processQueueWithToken(newAccessToken: string) {
   requestsQueue = []
   queue.forEach(({ resolve, reject, originalRequest }) => {
     try {
-      if (!originalRequest.headers) originalRequest.headers = {}
+      if (!originalRequest.headers) originalRequest.headers = {} as AxiosRequestHeaders
       setHeaderValue(originalRequest.headers, 'Authorization', `Bearer ${newAccessToken}`)
       resolve(request(originalRequest))
     } catch (err) {
@@ -153,7 +173,7 @@ function processQueueWithToken(newAccessToken: string) {
   })
 }
 
-function rejectQueue(error: any) {
+function rejectQueue(error: unknown) {
   const queue = [...requestsQueue]
   requestsQueue = []
   queue.forEach(({ reject }) => reject(error))
@@ -175,14 +195,15 @@ async function doRefreshAccessToken(): Promise<string> {
       timeout: 10000
     }
   )
-  const payload = (refreshResp.data as any)?.data ?? refreshResp.data
-  const accessToken = payload?.access_token
+  const refreshData = refreshResp.data as Record<string, unknown>
+  const payload = (refreshData?.data as Record<string, unknown>) ?? refreshData
+  const accessToken = payload?.access_token as string | undefined
   if (!accessToken) {
     throw new Error('refresh_access_token_missing')
   }
-  setToken(accessToken, payload?.expires_in ?? 86400)
+  setToken(accessToken, (payload?.expires_in as number) ?? 86400)
   if (payload?.refresh_token) {
-    setRefreshToken(payload.refresh_token)
+    setRefreshToken(payload.refresh_token as string)
   }
   return accessToken
 }
@@ -192,7 +213,7 @@ request.interceptors.response.use(
   (response: AxiosResponse) => {
     const isAuthRequest = /\/auth\/(login|register|refresh)/.test(response.config?.url ?? '')
     if (!isAuthRequest) hideLoading()
-    const startedAt = (response.config as any)?.[REQUEST_START_TIME_KEY]
+    const startedAt = (response.config as ExtendedAxiosConfig)?.[REQUEST_START_TIME_KEY]
     if (typeof startedAt === 'number') {
       emitApiMetricEvent({
         kind: 'success',
@@ -215,14 +236,15 @@ request.interceptors.response.use(
     }
     if (error.response) {
       const { status, data } = error.response
-      const originalRequest = error.config
-      const startedAt = (originalRequest as any)?.[REQUEST_START_TIME_KEY]
+      const originalRequest = error.config as ExtendedAxiosConfig | undefined
+      if (!originalRequest) return Promise.reject(error)
+      const startedAt = originalRequest[REQUEST_START_TIME_KEY]
       
       let errorMsg = '请求失败'
       if (data && (data.detail !== undefined || data.message !== undefined)) {
         const raw = data.detail ?? data.message
         if (Array.isArray(raw)) {
-          errorMsg = raw.map((e: any) => e.msg ?? e).join('; ')
+          errorMsg = raw.map((e: unknown) => (e && typeof e === 'object' && 'msg' in e) ? String((e as Record<string, unknown>).msg) : String(e)).join('; ')
         } else {
           errorMsg = String(raw)
         }
@@ -242,7 +264,7 @@ request.interceptors.response.use(
                 request.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
                 const userStore = useUserStore()
                 userStore.token = newToken
-                if (!originalRequest.headers) originalRequest.headers = {}
+                if (!originalRequest.headers) originalRequest.headers = {} as AxiosRequestHeaders
                 setHeaderValue(originalRequest.headers, 'Authorization', `Bearer ${newToken}`)
                 processQueueWithToken(newToken)
                 return request(originalRequest)

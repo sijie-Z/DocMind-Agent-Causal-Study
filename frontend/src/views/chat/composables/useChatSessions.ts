@@ -4,8 +4,7 @@ import { useDedupedMessage } from '@/utils/message'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useAppStore } from '@/stores/app'
-import { getConversations } from '@/api/conversation'
-import { deleteConversation } from '@/api/chat'
+import { getConversations, deleteConversation, type Conversation } from '@/api/conversation'
 
 export function useChatSessions() {
   const router = useRouter()
@@ -14,7 +13,7 @@ export function useChatSessions() {
   const chatStore = useChatStore()
   const appStore = useAppStore()
 
-  const conversations = ref<any[]>([])
+  const conversations = ref<Conversation[]>([])
   const isListLoading = ref(false)
   const sidebarOpen = computed({
     get: () => !appStore.sidebarCollapsed,

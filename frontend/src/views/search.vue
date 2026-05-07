@@ -286,7 +286,7 @@ const sortedResults = computed(() => {
 })
 
 const getFileTypeIcon = (type: string) => {
-  const map: any = { pdf: '📄', docx: '📝', xlsx: '📊', txt: '📃', md: '📝' }
+  const map: Record<string, string> = { pdf: '📄', docx: '📝', xlsx: '📊', txt: '📃', md: '📝' }
   return map[type.toLowerCase()] || '📄'
 }
 

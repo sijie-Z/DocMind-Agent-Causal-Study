@@ -5,7 +5,8 @@ import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { wsService } from '@/utils/websocket'
 import { sseService } from '@/utils/sseService'
-import type { ChatMessage, AttachedFile } from '@/types/chat'
+import type { ChatMessage, AttachedFile, KnowledgeSource } from '@/types/chat'
+import type { SSEMessage } from '@/types/api'
 
 export function useChatSend(
   messages: { value: ChatMessage[] },
@@ -64,7 +65,7 @@ export function useChatSend(
     sseService.off('error')
     sseService.off('retry')
 
-    const onChunk = (data: any) => {
+    const onChunk = (data: SSEMessage) => {
       sseStatus.value = 'connected'
       if (data.conversationId && (!chatStore.currentConversation || chatStore.currentConversation.id !== data.conversationId)) {
         chatStore.setCurrentConversation({
@@ -81,26 +82,26 @@ export function useChatSend(
       if (lastMsg && lastMsg.messageType === 'assistant' && lastMsg.id === aiMsgId) {
         fullContent += data.content || ''
         lastMsg.content = fullContent
-        if (data.sources) lastMsg.sources = data.sources
+        if (data.sources) lastMsg.sources = data.sources as KnowledgeSource[]
       }
       scrollToBottom()
     }
 
-    const onMessage = (data: any) => {
+    const onMessage = (data: SSEMessage) => {
       isLoading.value = false
       isRetrieving.value = false
       sseStatus.value = 'connected'
       const lastMsg = messages.value[messages.value.length - 1]
       if (lastMsg && lastMsg.id === aiMsgId) {
         lastMsg.content = data.content || fullContent
-        if (data.sources) lastMsg.sources = data.sources
-        if (data.is_cached) lastMsg.isCached = true
+        if (data.sources) lastMsg.sources = data.sources as KnowledgeSource[]
+        if ((data as unknown as Record<string, unknown>).is_cached) lastMsg.isCached = true
       }
       fetchConversations()
       scrollToBottom()
     }
 
-    const onError = (data: any) => {
+    const onError = (data: SSEMessage) => {
       isLoading.value = false
       isRetrieving.value = false
       sseStatus.value = 'error'

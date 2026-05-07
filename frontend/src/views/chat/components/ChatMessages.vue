@@ -176,7 +176,7 @@ defineProps<{
 defineEmits<{
   scroll: []
   scrollToBottom: [behavior: ScrollBehavior, force?: boolean]
-  useSuggestion: [suggestion: any]
+  useSuggestion: [suggestion: { title: string; desc: string }]
   feedback: [msg: ChatMessage, feedback: number]
   copy: [text: string]
 }>()

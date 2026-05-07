@@ -700,7 +700,7 @@ const currentDoc = ref<KnowledgeBase | null>(null)
 const detailLoading = ref(false)
 
 const fileList = ref<UploadFileInfo[]>([])
-const uploadRef = ref<any>(null)
+const uploadRef = ref<HTMLElement | null>(null)
 
 interface UploadTask {
   id: string
@@ -942,7 +942,7 @@ const uploadFile = async () => {
     // 移除硬编码的 organization_id，后端会从 Form 默认值或 User Context 获取
     
     const response = await uploadKnowledgeBase(formData, (progressEvent) => {
-      const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+      const progress = progressEvent.total ? Math.round((progressEvent.loaded * 100) / progressEvent.total) : 0
       const task = activeTasks.value.find(t => t.id === taskId)
       if (task) {
         task.progress = progress
@@ -986,7 +986,7 @@ const viewKnowledge = async (item: KnowledgeBase) => {
   currentDoc.value = {
     ...item,
     upload_source: '知识库上传'
-  } as any
+  } as KnowledgeBase
   showDetailModal.value = true
   try {
     const [detailRes, contentRes] = await Promise.all([
@@ -1003,7 +1003,7 @@ const viewKnowledge = async (item: KnowledgeBase) => {
       summary: content.summary || detail.description || '',
       suggested_tags: content.suggested_tags || [],
       preview_content: (content.content || '').slice(0, 1500)
-    } as any
+    } as KnowledgeBase
   } catch {
     message.warning(t('knowledge.previewLoadFailed'))
   } finally {

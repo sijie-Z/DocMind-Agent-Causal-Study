@@ -44,18 +44,18 @@ export const getNotificationSummary = async (): Promise<AxiosResponse<Notificati
   return request.get('/notifications/summary')
 }
 
-export const markAsRead = async (id: number): Promise<AxiosResponse<any>> => {
+export const markAsRead = async (id: number): Promise<AxiosResponse<void>> => {
   return request.put(`/notifications/${id}/read`)
 }
 
-export const markAllAsRead = async (): Promise<AxiosResponse<any>> => {
+export const markAllAsRead = async (): Promise<AxiosResponse<void>> => {
   return request.put('/notifications/read-all')
 }
 
-export const deleteNotification = async (id: number): Promise<AxiosResponse<any>> => {
+export const deleteNotification = async (id: number): Promise<AxiosResponse<void>> => {
   return request.delete(`/notifications/${id}`)
 }
 
-export const batchDeleteNotifications = async (ids: number[]): Promise<AxiosResponse<any>> => {
+export const batchDeleteNotifications = async (ids: number[]): Promise<AxiosResponse<void>> => {
   return request.delete('/notifications/', { data: { ids } })
 }

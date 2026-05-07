@@ -1,6 +1,7 @@
 import request from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types/common'
+import type { OrganizationMember, OrganizationDocument } from '@/types/api'
 
 export interface Organization {
   id: number
@@ -75,10 +76,10 @@ export const getOrganizationTree = async (): Promise<AxiosResponse<{ data: Organ
   })
 }
 
-export const getOrganizationMembers = async (id: number): Promise<AxiosResponse<{ data: any[] }>> => {
+export const getOrganizationMembers = async (id: number): Promise<AxiosResponse<{ data: OrganizationMember[] }>> => {
   return request.get(`/organizations/${id}/members`)
 }
 
-export const getOrganizationDocuments = async (id: number): Promise<AxiosResponse<{ data: any[] }>> => {
+export const getOrganizationDocuments = async (id: number): Promise<AxiosResponse<{ data: OrganizationDocument[] }>> => {
   return request.get(`/organizations/${id}/documents`)
 }

@@ -30,8 +30,20 @@ export interface UserListResponse {
 
 export interface UserProfileResponse extends User {
   bio?: string
-  preferences?: Record<string, any>
+  preferences?: Record<string, unknown>
   api_key?: string
+}
+
+export interface AuditLogEntry {
+  id: number
+  user_id: number
+  username?: string
+  action: string
+  target_type?: string
+  target_id?: string
+  details?: string
+  ip_address?: string
+  created_at: string
 }
 
 export const getUsers = async (params?: {
@@ -60,7 +72,7 @@ export const getAuditLogs = async (params?: {
   search?: string
   start_date?: string
   end_date?: string
-}): Promise<AxiosResponse<ApiResponse<{ items: any[]; total: number }>>> => {
+}): Promise<AxiosResponse<ApiResponse<{ items: AuditLogEntry[]; total: number }>>> => {
   return request.get('/users/audit-logs', { params })
 }
 
@@ -162,7 +174,7 @@ export const updateUserProfile = async (data: {
   avatar?: string
   email?: string
   bio?: string
-  preferences?: Record<string, any>
+  preferences?: Record<string, unknown>
 }): Promise<AxiosResponse<{ data: User }>> => {
   const payload = {
     full_name: data.nickname,
@@ -186,11 +198,11 @@ export const updatePassword = async (data: {
   })
 }
 
-export const deleteUser = async (id: number): Promise<AxiosResponse<ApiResponse<any>>> => {
+export const deleteUser = async (id: number): Promise<AxiosResponse<ApiResponse<unknown>>> => {
   return request.delete(`/users/${id}`)
 }
 
-export const resetUserPassword = async (id: number, password: string): Promise<AxiosResponse<ApiResponse<any>>> => {
+export const resetUserPassword = async (id: number, password: string): Promise<AxiosResponse<ApiResponse<unknown>>> => {
   return request.put(`/users/${id}/password`, {
     new_password: password
   })

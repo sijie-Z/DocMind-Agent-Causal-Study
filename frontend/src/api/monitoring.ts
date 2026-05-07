@@ -16,7 +16,7 @@ export interface ApplicationMetrics {
   request_count: number
   error_count: number
   response_time: number
-  api_endpoints: Record<string, any>
+  api_endpoints: Record<string, { count: number; avg_time: number }>
   database_connections: number
   redis_connections: number
   elasticsearch_health: string
@@ -49,9 +49,9 @@ export interface MonitoringDashboard {
     knowledge_base: KnowledgeBaseMetrics | null
   }
   trends: {
-    system: any[]
-    application: any[]
-    knowledge_base: any[]
+    system: SystemMetrics[]
+    application: ApplicationMetrics[]
+    knowledge_base: KnowledgeBaseMetrics[]
   }
   alerts: Alert[]
   timestamp: number
@@ -64,7 +64,7 @@ export const getMonitoringDashboard = async (): Promise<{ data: MonitoringDashbo
 export const getMetrics = async (
   metricType: 'system' | 'application' | 'knowledge_base',
   timeRange: string = '1h'
-): Promise<{ data: any }> => {
+): Promise<{ data: { metrics: (SystemMetrics | ApplicationMetrics | KnowledgeBaseMetrics)[]; total: number } }> => {
   return request.get(`/monitoring/metrics/${metricType}`, {
     params: { time_range: timeRange }
   })

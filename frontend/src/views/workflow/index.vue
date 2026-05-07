@@ -124,14 +124,14 @@ import {
   AddOutline, CreateOutline, TrashOutline, GitBranchOutline, SearchOutline,
   TimeOutline, GitNetworkOutline, CheckmarkCircleOutline, EllipsisVertical, CopyOutline, ServerOutline
 } from '@vicons/ionicons5'
-import { getWorkflows, deleteWorkflow as deleteWorkflowApi, createWorkflow, getWorkflow } from '@/api/workflow'
+import { getWorkflows, deleteWorkflow as deleteWorkflowApi, createWorkflow, getWorkflow, type WorkflowConfig } from '@/api/workflow'
 import dayjs from 'dayjs'
 
 interface WorkflowItem {
   id: number
   name: string
   description?: string
-  flow_data?: { nodes: any[] }
+  flow_data?: WorkflowConfig
   is_active: boolean
   updated_at: string
 }
@@ -200,7 +200,7 @@ const duplicateWorkflow = async (item: WorkflowItem) => {
     const res = await createWorkflow({
       name: `${item.name} (副本)`,
       description: item.description,
-      flow_data: item.flow_data as any
+      flow_data: item.flow_data!
     })
     message.success('复制成功')
     loadWorkflows()

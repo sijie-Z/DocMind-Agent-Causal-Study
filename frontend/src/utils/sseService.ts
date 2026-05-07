@@ -5,17 +5,25 @@ interface RetryOptions {
   retryDelay?: number
 }
 
+interface SSESource {
+  fileId?: number
+  filename?: string
+  relevanceScore?: number
+  snippet?: string
+  content?: string
+}
+
 interface SSEMessage {
   type: 'chunk' | 'message' | 'error' | 'retry'
   content?: string
   conversationId?: number | string
   messageId?: string
-  sources?: any[]
+  sources?: SSESource[]
   is_cached?: boolean
   attempt?: number
   maxRetries?: number
   waitTime?: number
-  rateLimit?: any
+  rateLimit?: { limit?: number; remaining?: number; reset?: number }
 }
 
 type SSEEventHandler = (data: SSEMessage) => void
@@ -71,12 +79,12 @@ class SSEService {
     }
   }
 
-  private emit(event: string, data?: any) {
+  private emit(event: string, data?: unknown) {
     if (['chunk', 'message', 'error', 'retry'].includes(event)) {
       const handler = this.messageHandlers.get(event)
-      if (handler) handler(data)
+      if (handler) handler(data as SSEMessage)
     } else if (event === 'connect' || event === 'disconnect') {
-      this.statusHandlers.forEach(h => h(data))
+      this.statusHandlers.forEach(h => h(data as 'connecting' | 'connected' | 'disconnected' | 'error'))
     }
   }
 
@@ -89,7 +97,7 @@ class SSEService {
     }
   }
 
-  async post(endpoint: string, data: any): Promise<boolean> {
+  async post(endpoint: string, data: Record<string, unknown>): Promise<boolean> {
     const attemptRequest = async (attempt: number): Promise<boolean> => {
       this.setStatus('connecting')
       this.currentRetryCount = attempt
@@ -118,7 +126,6 @@ class SSEService {
 
           if (shouldRetry && attempt < this.maxRetries) {
             const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : this.retryDelay * Math.pow(2, attempt - 1)
-            console.log(`[SSE] Retry ${attempt}/${this.maxRetries} after ${waitTime}ms`)
             this.emit('retry', { attempt, maxRetries: this.maxRetries, waitTime })
             await new Promise(resolve => setTimeout(resolve, waitTime))
             return attemptRequest(attempt + 1)
@@ -170,7 +177,6 @@ class SSEService {
               try {
                 const parsed = JSON.parse(jsonStr) as SSEMessage
                 const data = { ...parsed, type: parsed.type || currentEventType } as SSEMessage
-                console.log('[SSE] Message received:', data)
                 if (data.type === 'chunk') {
                   this.emit('chunk', data)
                 } else if (data.type === 'message') {

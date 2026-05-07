@@ -20,7 +20,7 @@ export interface SearchResult {
   file_size: number
   upload_time: string
   relevance_score: number
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   highlights: string[]
 }
 

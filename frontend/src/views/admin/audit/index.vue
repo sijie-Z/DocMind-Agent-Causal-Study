@@ -25,7 +25,7 @@
           :data="logs"
           :loading="loading"
           :pagination="pagination"
-          :row-key="(row: any) => row.id"
+          :row-key="(row: AuditLogEntry) => row.id"
           :bordered="false"
           @update:page="loadLogs"
           @update:page-size="loadLogs"
@@ -40,7 +40,7 @@ import { ref, onMounted, h } from 'vue'
 import { useDedupedMessage } from '@/utils/message'
 import { useI18n } from 'vue-i18n'
 import { NTag, NButton, NIcon, } from 'naive-ui'
-import { getAuditLogs } from '@/api/user'
+import { getAuditLogs, type AuditLogEntry } from '@/api/user'
 import { downloadAuditLogs } from '@/api/audit'
 import { formatDate } from '@/utils/format'
 import { DownloadOutline } from '@vicons/ionicons5'
@@ -52,7 +52,7 @@ const searchText = ref('')
 const actionFilter = ref<string | null>(null)
 const dateRange = ref<[number, number] | null>(null)
 const loading = ref(false)
-const logs = ref<any[]>([])
+const logs = ref<AuditLogEntry[]>([])
 
 const actionOptions = [
   { label: t('audit.actionTypes.login'), value: 'login' },
@@ -77,7 +77,7 @@ const columns = [
     title: t('audit.columns.time'),
     key: 'created_at',
     width: 170,
-    render: (row: any) => formatDate(row.created_at)
+    render: (row: AuditLogEntry) => formatDate(row.created_at)
   },
   {
     title: t('audit.columns.user'),
@@ -88,7 +88,7 @@ const columns = [
     title: t('audit.columns.action'),
     key: 'action',
     width: 150,
-    render: (row: any) => {
+    render: (row: AuditLogEntry) => {
       const isSensitive = SENSITIVE_ACTIONS.some(a => row.action?.includes(a))
       return h(NTag, {
         type: isSensitive ? 'error' : 'info',
@@ -101,7 +101,7 @@ const columns = [
     title: t('audit.columns.target'),
     key: 'target_type',
     width: 100,
-    render: (row: any) => row.target_type || '-'
+    render: (row: AuditLogEntry) => row.target_type || '-'
   },
   {
     title: t('audit.columns.detail'),
@@ -112,7 +112,7 @@ const columns = [
     title: 'IP',
     key: 'ip_address',
     width: 130,
-    render: (row: any) => row.ip_address || '-'
+    render: (row: AuditLogEntry) => row.ip_address || '-'
   }
 ]
 
@@ -127,9 +127,11 @@ const loadLogs = async () => {
       start_date: dateRange.value ? new Date(dateRange.value[0]).toISOString().slice(0, 10) : undefined,
       end_date: dateRange.value ? new Date(dateRange.value[1]).toISOString().slice(0, 10) : undefined
     })
-    if ((res.data as any)?.data?.items) {
-      logs.value = (res.data as any).data.items
-      pagination.value.itemCount = (res.data as any).data.total || 0
+    const resData = res.data as unknown as Record<string, unknown>
+    const items = (resData?.data as Record<string, unknown>)?.items
+    if (items) {
+      logs.value = items as AuditLogEntry[]
+      pagination.value.itemCount = ((resData?.data as Record<string, unknown>)?.total as number) || 0
     }
   } catch (e) {
     console.error('Failed to load audit logs:', e)
@@ -139,7 +141,7 @@ const loadLogs = async () => {
 }
 
 const exportLogs = () => {
-  const params: Record<string, any> = {}
+  const params: Record<string, string> = {}
   if (actionFilter.value) params.action = actionFilter.value
   if (dateRange.value) {
     params.start_date = new Date(dateRange.value[0]).toISOString().slice(0, 10)

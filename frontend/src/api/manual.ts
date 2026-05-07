@@ -44,6 +44,6 @@ export const updateManual = async (id: number, data: ManualUpdate): Promise<Axio
   return request.put(`/manuals/${id}`, data)
 }
 
-export const deleteManual = async (id: number): Promise<AxiosResponse<any>> => {
+export const deleteManual = async (id: number): Promise<AxiosResponse<void>> => {
   return request.delete(`/manuals/${id}`)
 }

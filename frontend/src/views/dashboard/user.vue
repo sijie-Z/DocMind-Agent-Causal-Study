@@ -209,7 +209,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { getUserStats } from '@/api/user'
-import { getConversations } from '@/api/conversation'
+import { getConversations, type Conversation } from '@/api/conversation'
 import { getRAGStats } from '@/api/monitoring'
 import { formatFileSize, formatDate as formatDateUtil } from '@/utils/format'
 import { CHART_COLORS } from '@/utils/chartTheme'
@@ -241,7 +241,7 @@ const ragStats = ref({
   avgDocs: 0
 })
 
-const recentConversations = ref<any[]>([])
+const recentConversations = ref<Conversation[]>([])
 const chartRef = ref<HTMLElement | null>(null)
 let chart: ECharts | null = null
 
@@ -323,8 +323,10 @@ onMounted(async () => {
       }
     }
 
-    if ((convRes.data as any)?.data?.data) {
-      recentConversations.value = ((convRes.data as any).data.data as any[]).slice(0, 5)
+    const convData = convRes.data as unknown as Record<string, unknown>
+    const convInner = convData?.data as Record<string, unknown> | undefined
+    if (convInner?.data && Array.isArray(convInner.data)) {
+      recentConversations.value = (convInner.data as Conversation[]).slice(0, 5)
     }
 
     if (ragRes.data) {

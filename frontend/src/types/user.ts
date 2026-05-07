@@ -31,7 +31,7 @@ export interface UserInfo {
   avatar?: string
   avatar_url?: string // Backend field
   bio?: string
-  preferences?: string | any // JSON string or object
+  preferences?: string | Record<string, unknown> // JSON string or object
 }
 
 export interface LoginForm {
