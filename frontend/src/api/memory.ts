@@ -1,5 +1,4 @@
 import request from '@/utils/request'
-import type { AxiosResponse } from 'axios'
 
 // 记忆项接口
 export interface MemoryItem {

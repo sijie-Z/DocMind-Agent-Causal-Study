@@ -51,7 +51,7 @@
             <div class="h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center gap-2 overflow-hidden px-4">
               <template v-if="item.flow_data?.nodes?.length">
                 <div
-                  v-for="(node, index) in item.flow_data.nodes.slice(0, 5)"
+                  v-for="node in item.flow_data.nodes.slice(0, 5)"
                   :key="node.id"
                   class="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
                   :class="getNodePreviewClass(node.type)"

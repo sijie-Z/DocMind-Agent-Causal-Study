@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { login as apiLogin, loginWithJson, register as apiRegister, getUserProfile } from '@/api/auth'
+import { loginWithJson, register as apiRegister, getUserProfile } from '@/api/auth'
 import { setToken, setRefreshToken, removeToken, getToken } from '@/utils/auth'
 import type { UserInfo, LoginForm, RegisterForm } from '@/types/user'
 import { useAppStore } from './app'
@@ -91,7 +91,7 @@ export const useUserStore = defineStore('user', () => {
             if (prefs?.theme) {
               useAppStore().setTheme(prefs.theme)
             }
-          } catch (_) {}
+          } catch { /* preference parse failure is non-critical */ }
         }
       } else {
         await getUserInfo()

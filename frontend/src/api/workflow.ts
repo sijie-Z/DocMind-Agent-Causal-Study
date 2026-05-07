@@ -1,5 +1,4 @@
 import request from '@/utils/request'
-import type { AxiosResponse } from 'axios'
 
 // 工作流节点类型
 export interface WorkflowNodeData {

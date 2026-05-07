@@ -158,7 +158,7 @@ class SSEService {
         this.setStatus('connected')
 
         let currentEventType: SSEMessage['type'] = 'chunk'
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read()
           if (done) break
 

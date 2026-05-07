@@ -12,7 +12,6 @@
 import { computed, onMounted, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
-import katex from 'katex'
 import mdKatex from 'markdown-it-katex'
 import 'highlight.js/styles/github-dark.css' // 默认使用 github-dark 风格
 import 'katex/dist/katex.min.css'
@@ -35,7 +34,7 @@ const md: MarkdownIt = new MarkdownIt({
         return `<pre class="hljs"><code>${
           hljs.highlight(str, { language: lang, ignoreIllegals: true }).value
         }</code></pre>`
-      } catch (__) {}
+      } catch { /* lang not available, fall through */ }
     }
     return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`
   }

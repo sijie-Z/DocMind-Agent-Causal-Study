@@ -41,7 +41,7 @@ class MockWebSocket {
 }
 
 // Replace global WebSocket
-;(globalThis as any).WebSocket = MockWebSocket
+(globalThis as any).WebSocket = MockWebSocket
 ;(globalThis as any).window = { location: { protocol: 'http:', host: 'localhost:5173' } }
 
 import { wsService } from '../websocket'

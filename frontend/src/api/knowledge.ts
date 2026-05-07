@@ -93,8 +93,7 @@ export const uploadKnowledgeBase = async (
 ): Promise<AxiosResponse<{ data: KnowledgeBase }>> => {
   return request.post('/documents/upload', data, {
     headers: {
-      // @ts-ignore
-      'Content-Type': undefined
+      'Content-Type': undefined // axios sets multipart boundary when Content-Type is undefined
     },
     onUploadProgress: onProgress
   })

@@ -16,7 +16,7 @@ export function useDedupedMessage() {
     // 如果已有相同消息，先销毁
     if (activeMessages.has(key)) {
       const existing = activeMessages.get(key)!
-      try { existing.destroy() } catch {}
+      try { existing.destroy() } catch { /* already destroyed */ }
       activeMessages.delete(key)
     }
 

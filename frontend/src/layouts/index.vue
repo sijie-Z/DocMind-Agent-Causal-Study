@@ -195,7 +195,7 @@ import { notificationSocket, type RealtimeNotificationPayload } from '@/utils/no
 import { useNotificationStore } from '@/stores/notification'
 import { formatDate } from '@/utils/format'
 import type { MenuOption, DropdownOption } from 'naive-ui'
-import { NMenu, NIcon, NInput, NButton, NBadge, NPopover, NList, NListItem, NThing, NDropdown, NAvatar } from 'naive-ui'
+import { NMenu, NIcon, NInput, NButton, NBadge, NPopover, NList, NListItem, NDropdown, NAvatar } from 'naive-ui'
 import { useDedupedMessage } from '@/utils/message'
 import {
   ChatbubbleEllipsesOutline,
