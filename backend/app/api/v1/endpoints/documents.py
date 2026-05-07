@@ -118,7 +118,7 @@ async def upload_document(
         if organization_id and organization_id.strip() and organization_id != 'undefined':
             try:
                 org_id = int(organization_id)
-            except:
+            except (ValueError, TypeError):
                 org_id = current_user.organization_id or 1
         else:
             org_id = current_user.organization_id or 1
@@ -129,7 +129,7 @@ async def upload_document(
             try:
                 # 前端可能传 JSON 字符串 ["tag1", "tag2"]
                 keywords_list = json.loads(tags)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 # 也可能传普通逗号分隔字符串 "tag1,tag2"
                 keywords_list = [t.strip() for t in tags.split(",") if t.strip()]
 
@@ -147,7 +147,7 @@ async def upload_document(
             # 异步线程执行同步的 minio 客户端方法
             await asyncio.to_thread(minio_client.stat_object, object_name)
             logger.info(f"File {object_name} already exists, skipping upload.")
-        except:
+        except Exception:
             await asyncio.to_thread(
                 minio_client.put_object,
                 object_name=object_name,

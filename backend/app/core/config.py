@@ -5,6 +5,7 @@
 
 from typing import List, Optional, Union
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 
 class Settings(BaseSettings):
     """应用配置"""
@@ -14,6 +15,14 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
+
+    @model_validator(mode='after')
+    def _check_secrets(self) -> 'Settings':
+        if not self.SECRET_KEY:
+            raise ValueError("SECRET_KEY must be set in .env (generate with: python -c \"import secrets; print(secrets.token_hex(32))\")")
+        if not self.JWT_SECRET_KEY:
+            raise ValueError("JWT_SECRET_KEY must be set in .env (generate with: python -c \"import secrets; print(secrets.token_hex(32))\")")
+        return self
     
     # 基础配置
     APP_NAME: str = "DocMind 企业级 RAG 知识库"
@@ -25,9 +34,9 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
-    # 安全配置
-    SECRET_KEY: str = "your-secret-key-here"
-    JWT_SECRET_KEY: str = "your-jwt-secret-key-here"
+    # 安全配置 (必须在 .env 中设置，不能使用默认值)
+    SECRET_KEY: str = ""
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7天
@@ -42,8 +51,8 @@ class Settings(BaseSettings):
     
     # --- 数据库配置 (关键修改) ---
     DATABASE_URL: str = "mysql+aiomysql://root:root@localhost:3306/paicongming_db"
-    DATABASE_POOL_SIZE: int = 100
-    DATABASE_MAX_OVERFLOW: int = 30
+    DATABASE_POOL_SIZE: int = 20
+    DATABASE_MAX_OVERFLOW: int = 10
     
     # --- Redis配置 (关键修改) ---
     REDIS_HOST: str = "localhost"
@@ -177,7 +186,6 @@ class Settings(BaseSettings):
         "/openapi.json",
         "/redoc",
         "/static",
-        "/api/v1/auth",
     ]
     
 # 创建配置实例

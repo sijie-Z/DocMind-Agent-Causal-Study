@@ -158,9 +158,8 @@ export const useUserStore = defineStore('user', () => {
 
       return response.data
     } catch (error) {
-      // 🛑 暂时屏蔽：获取用户信息失败时不立即登出，以便调试 401 问题
-      console.error('Failed to get user info, but staying logged in for debug:', error)
-      // logout() 
+      console.error('Failed to get user info:', error)
+      logout()
       throw error
     }
   }

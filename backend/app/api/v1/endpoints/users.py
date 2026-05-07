@@ -24,7 +24,7 @@ from app.models.chat import ChatSession, ChatMessage
 from app.models.document import Document, DocumentStatus
 from app.models.notification import Notification
 from app.models.user_audit import UserLoginSession, UserActivityLog
-from app.services.auth_service import AuthService
+from app.services.auth_service import auth_service
 from app.api.v1.endpoints.notifications import create_notification
 from app.core.security import get_current_user, permission_required
 from app.models.rbac import PermissionType
@@ -33,7 +33,6 @@ from app.core.config import settings
 # 从认证服务获取当前用户依赖
 
 router = APIRouter()
-auth_service = AuthService()
 
 # --- Response Schemas ---
 
@@ -818,7 +817,7 @@ async def update_user_profile(
                      pref_dict = {"bio": current_pref_str}
             elif current_pref_str:
                 pref_dict = {"bio": current_pref_str}
-        except:
+        except (json.JSONDecodeError, TypeError):
             pref_dict = {"bio": current_pref_str} if current_pref_str else {}
 
         # 检查 bio 或 preferences 是否真的变化了

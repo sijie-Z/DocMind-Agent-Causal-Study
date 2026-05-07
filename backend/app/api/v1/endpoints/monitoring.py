@@ -95,7 +95,7 @@ async def get_monitoring_dashboard(
         except Exception:
             # 索引不存在或无权限时降级
             index_size_mb = 0.0
-    except:
+    except Exception:
         pass
     
     # 统计知识库数据

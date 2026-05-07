@@ -156,6 +156,15 @@ class WebSocketService {
     }
   }
 
+  sendStop() {
+    if (this.connectionStatus !== 'connected' || !this.ws) {
+      console.error('WebSocket not connected')
+      return false
+    }
+    this.ws.send(JSON.stringify({ type: 'stop' }))
+    return true
+  }
+
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.log('Max reconnection attempts reached')

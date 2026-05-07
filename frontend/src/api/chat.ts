@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
-import type { ChatMessage, Conversation } from '@/types/chat'
+import type { ChatMessage } from '@/types/chat'
 import type { ApiResponse } from '@/types/common'
 
 // 发送消息
@@ -18,11 +18,6 @@ export function sendMessage(data: { message: string; conversationId?: number }) 
   })
 }
 
-// 获取对话列表
-export function getConversations() {
-  return request.get<ApiResponse<Conversation[]>>('/chat/conversations')
-}
-
 // 获取对话消息详情
 export function getConversationMessages(conversationId: string) {
   return request.get<ApiResponse<{
@@ -31,16 +26,6 @@ export function getConversationMessages(conversationId: string) {
     messages: ChatMessage[]
     created_at: string
   }>>(`/chat/conversations/${conversationId}`)
-}
-
-// 创建新对话 (通常不需要显式调用，发送第一条消息时自动创建，或者前端先生成 UUID)
-export function createConversation() {
-  return request.post<ApiResponse<Conversation>>('/chat/conversations')
-}
-
-// 删除对话
-export function deleteConversation(conversationId: string) {
-  return request.delete<ApiResponse>(`/chat/conversations/${conversationId}`)
 }
 
 // 解除文档绑定

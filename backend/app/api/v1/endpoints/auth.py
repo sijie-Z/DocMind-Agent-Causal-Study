@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -19,7 +19,7 @@ from app.core.database import get_db
 from app.core.redis import RedisTools
 from app.models.user import User
 from app.models.user_audit import UserLoginSession, UserActivityLog
-from app.services.auth_service import AuthService
+from app.services.auth_service import auth_service
 from app.services.audit_service import audit_service
 from app.core.security import get_current_user
 
@@ -41,6 +41,15 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: Optional[str] = None
     organization_id: Optional[int] = None
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError('密码长度不能少于8位')
+        if len(v) > 128:
+            raise ValueError('密码长度不能超过128位')
+        return v
 
 class RefreshRequest(BaseModel):
     refresh_token: str
@@ -71,10 +80,6 @@ class UserInfoResponse(BaseModel):
     is_active: Optional[bool] = True
     created_at: Optional[datetime] = None
     preferences: Optional[str] = None
-
-# 服务实例
-auth_service = AuthService()
-
 
 @router.get("/ensure-demo")
 async def ensure_demo():
@@ -216,14 +221,11 @@ async def login(
         
     except HTTPException:
         raise
-    except BaseException as e:
-        import traceback
-        err_msg = f"{type(e).__name__}: {str(e)}"
-        traceback.print_exc()
+    except Exception as e:
         logger.exception("登录过程异常")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=err_msg if settings.EXPOSE_EXCEPTION_DETAIL else "登录失败",
+            detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else "登录失败",
         )
 
 from app.models.notification import Notification
@@ -295,14 +297,11 @@ async def login_json(
         }
     except HTTPException:
         raise
-    except BaseException as e:
-        import traceback
-        err_msg = f"{type(e).__name__}: {str(e)}"
-        traceback.print_exc()
+    except Exception as e:
         logger.exception("login_json 异常")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=err_msg if settings.EXPOSE_EXCEPTION_DETAIL else "登录失败"
+            detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else "登录失败"
         )
 
 

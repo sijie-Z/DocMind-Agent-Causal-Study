@@ -7,7 +7,7 @@ import json # 确保有这个
 import jwt
 import bcrypt
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 from fastapi import Depends, HTTPException, status
@@ -23,14 +23,6 @@ from app.models.user import User
 from app.services.organization_service import organization_service
 
 logger = logging.getLogger(__name__)
-
-# Add file handler for debugging (only once)
-if not logger.handlers:
-    fh = logging.FileHandler("auth_debug.log", encoding='utf-8')
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.setLevel(logging.DEBUG)
 
 # JWT认证方案
 security = HTTPBearer()
@@ -49,14 +41,14 @@ class AuthService:
         to_encode = data.copy()
         
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=self.access_token_expire_minutes)
         
         to_encode.update({
             "exp": expire,
             "type": "access",
-            "iat": datetime.utcnow()
+            "iat": datetime.now(timezone.utc)
         })
         
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
@@ -67,14 +59,14 @@ class AuthService:
         to_encode = data.copy()
         
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=self.refresh_token_expire_minutes)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=self.refresh_token_expire_minutes)
         
         to_encode.update({
             "exp": expire,
             "type": "refresh",
-            "iat": datetime.utcnow()
+            "iat": datetime.now(timezone.utc)
         })
         
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
@@ -105,14 +97,22 @@ class AuthService:
         
         # 验证令牌
         payload = self.verify_token(token)
-        
+
         if payload is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="无效的认证令牌",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
+        # 检查令牌是否已被吊销
+        if await self.is_token_blacklisted(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="令牌已被吊销",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         # 检查令牌类型
         if payload.get("type") != "access":
             raise HTTPException(
@@ -206,9 +206,6 @@ class AuthService:
             
             if not is_valid:
                 logger.warning(f"Login failed: Invalid password for user {username}")
-                # DEBUG: Log hashes (be careful in production!)
-                logger.warning(f"DEBUG ONLY - Input pass: {password}")
-                logger.warning(f"DEBUG ONLY - Stored hash: {user.hashed_password}")
                 return None
             
             # 检查用户状态
@@ -285,7 +282,7 @@ class AuthService:
             
             if payload and "exp" in payload:
                 exp_timestamp = payload["exp"]
-                current_timestamp = datetime.utcnow().timestamp()
+                current_timestamp = datetime.now(timezone.utc).timestamp()
                 
                 # 计算剩余有效期
                 if exp_timestamp > current_timestamp:
@@ -412,7 +409,7 @@ class AuthService:
             if organization_id is not None:
                 user.organization_id = organization_id  # pyright: ignore[reportAttributeAccessIssue]
             
-            user.updated_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
+            user.updated_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
             
             await db.commit()
             await db.refresh(user)
@@ -440,7 +437,7 @@ class AuthService:
             
             # 更新密码
             user.hashed_password = hashed_password  # pyright: ignore[reportAttributeAccessIssue]
-            user.updated_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
+            user.updated_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
             
             await db.commit()
             await db.refresh(user)

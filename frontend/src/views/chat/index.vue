@@ -677,11 +677,11 @@ import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
-import { 
-  getConversationMessages, createConversation, deleteConversation, 
-  updateMessageFeedback, clearConversationMessages 
+import {
+  getConversationMessages,
+  updateMessageFeedback, clearConversationMessages
 } from '@/api/chat'
-import { getConversations } from '@/api/conversation'
+import { getConversations, createConversation, deleteConversation } from '@/api/conversation'
 import { uploadKnowledgeBase, getKnowledgeBase, getDocumentDetail, getDocumentContent } from '@/api/knowledge'
 import { wsService } from '@/utils/websocket'
 import { sseService } from '@/utils/sseService'
@@ -963,7 +963,7 @@ const copyText = async (text: string) => {
   catch (err) { message.error(t('common.copyFailed')) }
 }
 const stopGeneration = () => {
-  wsService.send(JSON.stringify({ type: 'stop' }))
+  wsService.sendStop()
   isLoading.value = false
   isRetrieving.value = false
 }

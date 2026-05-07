@@ -9,7 +9,6 @@ import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
 import App from './App.vue'
 import { routes } from './router'
-import { setupInterceptors } from './utils/request'
 import i18n from './locales'
 import './styles/index.css'
 
@@ -19,7 +18,6 @@ const router = createRouter({
 })
 
 const pinia = createPinia()
-setupInterceptors(router)
 
 const app = createApp(App)
 app.use(pinia)

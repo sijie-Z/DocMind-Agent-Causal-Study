@@ -17,7 +17,7 @@ from app.models.user import User
 from app.models.chat import ChatSession, ChatMessage, ChatSessionStatus, MessageType
 from app.models.document import Document
 from app.models.prompt import PromptTemplate
-from app.services.auth_service import AuthService
+from app.services.auth_service import auth_service
 from app.services.rag_service import rag_service
 from app.services.semantic_cache import semantic_cache
 from app.services.memory_service import get_memory_system
@@ -25,7 +25,6 @@ from app.core.security import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-auth_service = AuthService()
 
 
 STRICT_MODE_PROMPT = (

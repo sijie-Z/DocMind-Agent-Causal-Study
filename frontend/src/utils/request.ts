@@ -317,43 +317,4 @@ request.interceptors.response.use(
   }
 )
 
-// 设置路由守卫
-export function setupInterceptors(routerInstance: any) {
-  setRouter(routerInstance)
-  
-  routerInstance.beforeEach(async (to: any, _from: any, next: any) => {
-    const userStore = useUserStore()
-    
-    // 检查是否需要登录
-    if (to.meta.requiresAuth) {
-      // 1. 如果没有 token，直接去登录
-      if (!userStore.token) {
-        next({ name: 'Login' })
-        return
-      }
-      
-      // 2. 如果有 token 但没有用户信息，尝试获取用户信息
-      if (!userStore.userInfo) {
-        try {
-          await userStore.getUserInfo()
-          // 获取成功，继续执行后续权限检查
-        } catch (error) {
-          console.error('获取用户信息失败:', error)
-          userStore.logout()
-          next({ name: 'Login' })
-          return
-        }
-      }
-    }
-    
-    // 检查是否需要管理员权限
-    if (to.meta.requiresAdmin && !userStore.isAdmin) {
-      next({ name: 'Chat' })
-      return
-    }
-    
-    next()
-  })
-}
-
 export default request

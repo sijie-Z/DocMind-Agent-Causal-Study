@@ -10,14 +10,19 @@ export const useAppStore = defineStore('app', () => {
   const themeMode = ref<ThemeMode>('auto')
   const sidebarCollapsed = ref(false)
   const loading = ref(false)
-  
+
   // 系统偏好监听
-  const systemDarkMode = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
-  
+  const systemDarkMode = ref(typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
   // 监听系统主题变化
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    systemDarkMode.value = e.matches
-  })
+  if (typeof window !== 'undefined') {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      systemDarkMode.value = e.matches
+    })
+  }
+
+  // 防抖定时器
+  let themeSyncTimer: ReturnType<typeof setTimeout> | null = null
   
   // 计算属性：实际生效的主题
   const isDark = computed(() => {
@@ -34,13 +39,16 @@ export const useAppStore = defineStore('app', () => {
     themeMode.value = mode
     localStorage.setItem('theme', mode)
     applyTheme()
-    
-    // 如果已登录，同步到后端
+
+    // 如果已登录，防抖同步到后端
     const userStore = useUserStore()
     if (userStore.token) {
+      if (themeSyncTimer) clearTimeout(themeSyncTimer)
+      themeSyncTimer = setTimeout(() => {
         updateUserProfile({ preferences: { theme: mode } }).catch(err => {
-            console.error('Failed to sync theme preference:', err)
+          console.error('Failed to sync theme preference:', err)
         })
+      }, 500)
     }
   }
   

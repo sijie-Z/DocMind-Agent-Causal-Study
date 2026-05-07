@@ -35,9 +35,6 @@ async def get_organization_tree(
             "data": tree
         }
     except Exception as e:
-        # 打印详细错误到终端，方便我们看
-        import traceback
-        traceback.print_exc() 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取组织架构树失败: {str(e)}"

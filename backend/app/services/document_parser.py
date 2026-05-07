@@ -118,7 +118,7 @@ class DocumentParser:
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
                     os.remove(temp_file_path)
-                except:
+                except OSError:
                     pass
     
     async def _parse_pdf(self, file_path: str) -> Dict[str, Any]:

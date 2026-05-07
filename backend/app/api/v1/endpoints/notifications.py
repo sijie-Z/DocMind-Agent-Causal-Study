@@ -11,11 +11,10 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.notification import Notification
 from app.core.security import get_current_user
-from app.services.auth_service import AuthService
+from app.services.auth_service import auth_service
 from app.core.notification_ws import notification_ws_manager
 
 router = APIRouter()
-auth_service = AuthService()
 
 # --- Schemas ---
 class NotificationResponse(BaseModel):
