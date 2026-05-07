@@ -1,8 +1,8 @@
 interface RetryOptions {
   maxRetries?: number
   retryDelay?: number
-  retryCondition?: (error: unknown) => boolean
-  onRetry?: (error: unknown, attempt: number) => void
+  retryCondition?: (_error: unknown) => boolean
+  onRetry?: (_error: unknown, _attempt: number) => void
 }
 
 const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
@@ -57,7 +57,7 @@ export async function withRetry<T>(
 }
 
 export class RetryableFetch {
-  constructor(private options: RetryOptions = {}) {}
+  constructor(private _options: RetryOptions = {}) {}
 
   async post(url: string, data: unknown, headers: Record<string, string> = {}): Promise<Response> {
     return withRetry(
@@ -66,7 +66,7 @@ export class RetryableFetch {
         headers,
         body: JSON.stringify(data)
       }),
-      this.options
+      this._options
     )
   }
 }

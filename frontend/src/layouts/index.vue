@@ -265,8 +265,8 @@ const handleNotificationClick = async (notification: Notification) => {
     try {
       await markAsRead(notification.id)
       notificationStore.consumeRead(notification.id)
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error)
+    } catch {
+      // Failed to mark notification as read
     }
   }
 
@@ -277,8 +277,8 @@ const handleMarkAllRead = async () => {
   try {
     await markAllAsRead()
     await notificationStore.bootstrap()
-  } catch (error) {
-    console.error('Failed to mark all as read:', error)
+  } catch {
+    // Failed to mark all as read
   }
 }
 
@@ -287,8 +287,8 @@ const handleDeleteNotification = async (notificationId: number) => {
     await deleteNotification(notificationId)
     notificationStore.headerItems = notificationStore.headerItems.filter((n) => n.id !== notificationId)
     await notificationStore.bootstrap()
-  } catch (error) {
-    console.error('Failed to delete notification:', error)
+  } catch {
+    // Failed to delete notification
   }
 }
 
@@ -436,9 +436,8 @@ const message = useDedupedMessage()
 const handleMenuSelect = async (key: string) => {
   try {
     await router.push({ name: key })
-  } catch (error) {
-    console.error('页面加载失败，可能是组件损坏:', error)
-    // 提示用户
+  } catch {
+    // 页面加载失败
     message.error('页面加载失败，请尝试刷新页面')
   }
 }

@@ -302,18 +302,18 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, h } from 'vue'
 import { useDedupedMessage } from '@/utils/message'
-import { 
-  NCard, NSpace, NInput, NIcon, NButton, NSpin, NDataTable, 
+import {
+  NSpace, NInput, NIcon, NButton, NSpin, NDataTable,
   NModal, NForm, NFormItem, NColorPicker, NTreeSelect, NInputNumber,
   NPopconfirm, NTooltip, NTree, NDrawer, NDrawerContent,
   NTabs, NTabPane, NDescriptions, NDescriptionsItem, NList, NListItem,
   NAvatar, NThing, NTag, NResult
 } from 'naive-ui'
 import {
-  SearchOutline, RefreshOutline, CreateOutline, 
+  SearchOutline, RefreshOutline, CreateOutline,
   TrashOutline, AddCircleOutline, HelpCircleOutline,
-  EllipsisHorizontalOutline, DocumentTextOutline,
-  DocumentOutline, CheckmarkCircleOutline, CloseCircleOutline
+  DocumentTextOutline,
+  DocumentOutline
 } from '@vicons/ionicons5'
 import type { DataTableColumns, TreeSelectOption, FormInst, TreeOption, TreeDropInfo } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
@@ -509,10 +509,6 @@ const showOrgDetails = async (orgId: number) => {
   } finally {
     loadingDetails.value = false
   }
-}
-
-const handleNodeClick = ({ option }: { option: TreeOption }) => {
-  showOrgDetails(option.key as number)
 }
 
 const pagination = reactive({

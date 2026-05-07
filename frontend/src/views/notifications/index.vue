@@ -59,17 +59,13 @@
 
 <script setup lang="ts">
 import { h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useDedupedMessage } from '@/utils/message'
 import { NButton, } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { formatDate } from '@/utils/format'
 import { batchDeleteNotifications, deleteNotification, getNotificationSummary, getNotifications, markAllAsRead, markAsRead, type Notification, type NotificationSummaryResponse } from '@/api/notification'
 import { notificationSocket, type RealtimeNotificationPayload } from '@/utils/notificationSocket'
-import { useNotificationStore } from '@/stores/notification'
 
-const message = useDedupedMessage()
 const router = useRouter()
-const notificationStore = useNotificationStore()
 const latestRealtimeId = ref<number | null>(null)
 
 const summary = reactive<NotificationSummaryResponse>({
@@ -230,7 +226,7 @@ const handleMarkRead = async (row: Notification) => {
     recentlyReadIds.value = [...new Set([row.id, ...recentlyReadIds.value])].slice(0, 30)
     await fetchSummary()
   } catch (error) {
-    console.error('Failed to mark as read:', error)
+    // Failed to mark as read
   }
 }
 
@@ -239,7 +235,7 @@ const handleMarkAllRead = async () => {
     await markAllAsRead()
     await handleRefresh()
   } catch (error) {
-    console.error('Failed to mark all as read:', error)
+    // Failed to mark all as read
   }
 }
 
@@ -248,7 +244,7 @@ const handleDelete = async (row: Notification) => {
     await deleteNotification(row.id)
     await handleRefresh()
   } catch (error) {
-    console.error('Failed to delete notification:', error)
+    // Failed to delete notification
   }
 }
 

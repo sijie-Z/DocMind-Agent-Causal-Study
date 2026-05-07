@@ -1,20 +1,17 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { useDedupedMessage } from '@/utils/message'
-import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { wsService } from '@/utils/websocket'
-import { sseService } from '@/utils/sseService'
 import type { ChatMessage, KnowledgeSource } from '@/types/chat'
 import type { WebSocketMessage } from '@/utils/websocket'
 
 export function useChatConnection(
   messages: { value: ChatMessage[] },
-  scrollToBottom: (behavior?: ScrollBehavior, force?: boolean) => void,
+  scrollToBottom: (_behavior?: ScrollBehavior, _force?: boolean) => void,
   fetchConversations: () => Promise<void>
 ) {
   const message = useDedupedMessage()
-  const { t } = useI18n()
   const chatStore = useChatStore()
   const userStore = useUserStore()
 

@@ -210,7 +210,7 @@ const handleSubmit = async () => {
       }
     }
   } catch (error: any) {
-    console.error('操作失败:', error)
+    // 操作失败
   } finally {
     loading.value = false
   }

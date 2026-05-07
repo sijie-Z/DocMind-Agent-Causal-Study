@@ -57,7 +57,7 @@ export function useChatAttachments() {
           tempFile.errorMsg = data.parse_error || '解析失败'
           return
         }
-      } catch (e) { console.error(e) }
+      } catch { /* ignore */ }
       await new Promise(resolve => setTimeout(resolve, 1000))
       retries++
     }

@@ -11,7 +11,7 @@ export interface RealtimeNotificationPayload {
   target_id?: string
 }
 
-type NotificationHandler = (payload: RealtimeNotificationPayload) => void
+type NotificationHandler = (_payload: RealtimeNotificationPayload) => void
 
 class NotificationSocketService {
   private ws: WebSocket | null = null
@@ -55,7 +55,7 @@ class NotificationSocketService {
         
         // 等待 pong 响应
         this.pongTimeoutTimer = window.setTimeout(() => {
-          console.warn('[NotificationSocket] Heartbeat timeout, reconnecting...')
+          // Heartbeat timeout, reconnecting
           this.emitWsMetricEvent({ kind: 'heartbeat-timeout' })
           this.ws?.close() // 主动断开，触发 onclose 重连
         }, this.pongTimeout)
@@ -105,8 +105,8 @@ class NotificationSocketService {
           const payload = parsed.data as RealtimeNotificationPayload
           this.handlers.forEach(handler => handler(payload))
         }
-      } catch (err) {
-        console.warn('[NotificationSocket] Parse error:', err)
+      } catch {
+        // Parse error
       }
     }
 
@@ -158,7 +158,7 @@ class NotificationSocketService {
   private scheduleReconnect() {
     if (this.reconnectTimer) return
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[NotificationSocket] Max reconnect attempts reached')
+      // Max reconnect attempts reached
       this.emitWsMetricEvent({ kind: 'max-reconnect-reached' })
       return
     }

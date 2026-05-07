@@ -25,7 +25,7 @@ class WebSocketService {
   private reconnectInterval = 5000
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
-  private messageHandlers: Map<string, (data: WebSocketMessage) => void> = new Map()
+  private messageHandlers: Map<string, (_data: WebSocketMessage) => void> = new Map()
   private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' = 'disconnected'
   private currentUserId: number = 0
   private manualDisconnect = false
@@ -42,7 +42,7 @@ class WebSocketService {
   connect(userId: number, conversationId?: number | string) {
     // 0. 安全检查
     if (!userId || userId === 0 || String(userId) === '0') {
-      console.warn('[WS] Connect aborted: Invalid userId', userId)
+      // Connect aborted: Invalid userId
       return
     }
 
@@ -57,7 +57,7 @@ class WebSocketService {
     const rawToken = localStorage.getItem('docmind_token') || localStorage.getItem('paicongming_token') || getToken()
     
     if (!rawToken) {
-        console.error('[WS] Connection failed: No token found in any storage')
+        // Connection failed: No token found in any storage
         this.connectionStatus = 'error'
         this.emit('error', { type: 'error', content: '未找到登录凭证，请重新登录' })
         return
@@ -71,8 +71,8 @@ class WebSocketService {
       this.manualDisconnect = false
       this.ws = new WebSocket(wsUrl)
       this.setupEventListeners()
-    } catch (error) {
-      console.error('[WS] Exception during connection setup:', error)
+    } catch {
+      // Exception during connection setup
       this.handleConnectionError()
     }
   }
@@ -90,12 +90,12 @@ class WebSocketService {
       try {
         const data = JSON.parse(event.data) as WebSocketMessage
         this.handleMessage(data)
-      } catch (error) {
-        console.error('[WS] Failed to parse message:', error)
+      } catch {
+        // Failed to parse message
       }
     }
 
-    this.ws.onclose = (event) => {
+    this.ws.onclose = (_event) => {
       this.connectionStatus = 'disconnected'
       this.emit('disconnect', { type: 'disconnect' })
       if (!this.manualDisconnect) {
@@ -103,8 +103,7 @@ class WebSocketService {
       }
     }
 
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
+    this.ws.onerror = () => {
       this.connectionStatus = 'error'
       this.emit('error', { type: 'error', content: 'WebSocket连接错误' })
     }
@@ -125,7 +124,7 @@ class WebSocketService {
     }
   }
 
-  on(event: string, handler: (data: WebSocketMessage) => void) {
+  on(event: string, handler: (_data: WebSocketMessage) => void) {
     this.messageHandlers.set(event, handler)
   }
 
@@ -136,7 +135,7 @@ class WebSocketService {
   // 传递 fileIds, strictMode 和 privacyMode 参数给后端
   send(message: string, conversationId?: number | string, fileIds?: string[], strictMode: boolean = false, privacyMode: boolean = true) {
     if (this.connectionStatus !== 'connected' || !this.ws) {
-      console.error('WebSocket not connected')
+      // WebSocket not connected
       return false
     }
 
@@ -150,15 +149,15 @@ class WebSocketService {
       }
       this.ws.send(JSON.stringify(messageData))
       return true
-    } catch (error) {
-      console.error('Failed to send WebSocket message:', error)
+    } catch {
+      // Failed to send WebSocket message
       return false
     }
   }
 
   sendStop() {
     if (this.connectionStatus !== 'connected' || !this.ws) {
-      console.error('WebSocket not connected')
+      // WebSocket not connected
       return false
     }
     this.ws.send(JSON.stringify({ type: 'stop' }))
@@ -176,7 +175,7 @@ class WebSocketService {
       if (this.currentUserId > 0) {
         this.connect(this.currentUserId) 
       } else {
-        console.warn('Cannot reconnect: Invalid currentUserId')
+        // Cannot reconnect: Invalid currentUserId
       }
     }, this.reconnectInterval)
   }

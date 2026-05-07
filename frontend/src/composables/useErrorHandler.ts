@@ -4,8 +4,7 @@ import { useDedupedMessage } from '@/utils/message'
 export function useGlobalErrorHandler() {
   const message = useDedupedMessage()
 
-  const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-    console.error('[Unhandled Promise Rejection]', event.reason)
+  const handleUnhandledRejection = () => {
     message.error('发生了一些错误，请稍后重试')
   }
 
@@ -13,7 +12,6 @@ export function useGlobalErrorHandler() {
     if (event.message && event.message.includes('ResizeObserver')) {
       return
     }
-    console.error('[Global Error]', event.error || event.message)
   }
 
   onMounted(() => {
@@ -30,7 +28,6 @@ export function useGlobalErrorHandler() {
 export function useRequestErrorHandler() {
   const handleError = (error: any) => {
     const message = error?.message || error?.msg || '网络请求失败'
-    console.error('[Request Error]', error)
 
     if (error?.status === 401) {
       return { needAuth: true, message: '请重新登录' }

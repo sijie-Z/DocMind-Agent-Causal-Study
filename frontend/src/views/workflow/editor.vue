@@ -578,7 +578,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { VueFlow, useVueFlow, MarkerType, type Connection } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -614,7 +614,6 @@ import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
 
 const route = useRoute()
-const router = useRouter()
 const message = useDedupedMessage()
 const workflowStore = useWorkflowStore()
 

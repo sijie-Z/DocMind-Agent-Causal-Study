@@ -15,9 +15,16 @@ module.exports = {
   plugins: ['@typescript-eslint'],
   rules: {
     'vue/multi-word-component-names': 'off',
-    'no-unused-vars': 'warn',
+    'no-unused-vars': 'off',
     'no-console': 'warn',
-    '@typescript-eslint/no-unused-vars': 'warn',
     '@typescript-eslint/no-explicit-any': 'off'
-  }
+  },
+  overrides: [
+    {
+      files: ['*.ts', '*.tsx', '*.vue'],
+      rules: {
+        '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }]
+      }
+    }
+  ]
 }

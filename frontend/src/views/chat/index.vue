@@ -83,7 +83,6 @@ import { useDedupedMessage } from '@/utils/message'
 import { getConversationMessages, clearConversationMessages } from '@/api/chat'
 import type { Conversation } from '@/api/conversation'
 import type { ChatMessage } from '@/types/chat'
-import { getDocumentDetail, getDocumentContent } from '@/api/knowledge'
 import { getToken } from '@/utils/auth'
 
 import { ChatSidebar, ChatMessages, ChatInput, ChatHeader, DocumentPreviewModal } from './components'
@@ -100,13 +99,13 @@ const appStore = useAppStore()
 const chatMessagesRef = ref()
 
 const {
-  messages, chatContainer, isUserScrolling, showBackToBottom, autoFollowResponse,
+  messages, showBackToBottom,
   handleScroll: baseHandleScroll, scrollToBottom: baseScrollToBottom,
   handleFeedback, copyText
 } = useChatMessages()
 
 const {
-  attachedFiles, attachedFileIds, fileInputRef,
+  attachedFiles, attachedFileIds,
   triggerFileUpload, handleFileUpload: baseHandleFileUpload, removeAttachment
 } = useChatAttachments()
 
@@ -116,12 +115,12 @@ const {
 } = useChatSessions()
 
 const {
-  connectionStatus, sseStatus, useSSE, useStream, isLoading, isRetrieving,
+  sseStatus, useSSE, useStream, isLoading, isRetrieving,
   effectiveConnectionStatus, connectWebSocket, startStatusPolling, stopGeneration
 } = useChatConnection(messages, baseScrollToBottom, fetchConversations)
 
 const {
-  inputMessage, strictMode, privacyMode, handleSend: baseHandleSend, handleKeydown
+  inputMessage, strictMode, privacyMode, handleSend: baseHandleSend
 } = useChatSend(
   messages, attachedFiles, attachedFileIds,
   baseScrollToBottom, fetchConversations,
@@ -237,39 +236,6 @@ const previewDoc = ref<{
   suggested_tags?: string[]
 } | undefined>(undefined)
 const previewContent = ref('')
-
-const handlePreviewFile = async (fileId?: string) => {
-  if (!fileId) return
-  showPreviewModal.value = true
-  previewLoading.value = true
-  previewDoc.value = undefined
-  previewContent.value = ''
-  try {
-    const [statusRes, contentRes] = await Promise.all([
-      getDocumentDetail(fileId),
-      getDocumentContent(fileId)
-    ])
-    if (statusRes.data?.data) {
-      const data = statusRes.data.data
-      previewDoc.value = {
-        id: data.id, filename: data.filename, file_size: data.file_size,
-        created_at: data.created_at, description: data.description, keywords: data.keywords,
-        source: data.upload_source || (data.description?.includes('来自聊天') ? '聊天上传' : '知识库上传')
-      }
-    }
-    if (contentRes.data?.data) {
-      previewContent.value = contentRes.data.data.content
-      if (previewDoc.value) {
-        previewDoc.value.summary = contentRes.data.data.summary || ''
-        previewDoc.value.suggested_tags = contentRes.data.data.suggested_tags || []
-      }
-    }
-  } catch {
-    message.error(t('chat.previewFailed'))
-  } finally {
-    previewLoading.value = false
-  }
-}
 
 const handleDownload = (fileId?: string) => {
   if (!fileId) return

@@ -30,13 +30,13 @@ export const useUserStore = defineStore('user', () => {
               const appStore = useAppStore()
               appStore.setTheme(prefs.theme)
             }
-          } catch (e) {
-            console.warn('Failed to parse preferences during init:', e)
+          } catch {
+            // Failed to parse preferences during init
           }
         }
       }
-    } catch (e) {
-      console.warn('Failed to restore user info', e)
+    } catch {
+      // Failed to restore user info
       localStorage.removeItem('user_info')
     }
   }
@@ -156,14 +156,13 @@ export const useUserStore = defineStore('user', () => {
             const appStore = useAppStore()
             appStore.setTheme(prefs.theme)
           }
-        } catch (e) {
-          console.warn('Failed to parse user preferences', e)
+        } catch {
+          // Failed to parse user preferences
         }
       }
 
       return response.data
     } catch (error) {
-      console.error('Failed to get user info:', error)
       logout()
       throw error
     }

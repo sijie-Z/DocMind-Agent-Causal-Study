@@ -30,7 +30,7 @@ export function useChatSessions() {
         conversations.value = res.data.data.data
       }
     } catch (error) {
-      console.error(error)
+      // Failed to load conversations
     } finally {
       isListLoading.value = false
     }

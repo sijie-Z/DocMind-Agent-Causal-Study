@@ -649,13 +649,9 @@ import {
   DocumentAttachOutline,
   EyeOutline,
   TrashOutline,
-  TimeOutline,
-  ExtensionPuzzleOutline,
-  InformationCircleOutline,
   CheckmarkCircleOutline,
   AlertCircleOutline,
   CloseCircleOutline,
-  CheckmarkOutline,
   CloseOutline,
   ListOutline,
   GridOutline
@@ -889,7 +885,7 @@ const loadKnowledgeBases = async () => {
     }
   } catch (error: any) {
     loadError.value = true
-    console.error('Failed to load knowledge bases:', error)
+    // Failed to load knowledge bases
   } finally {
     loading.value = false
   }
@@ -941,7 +937,7 @@ const uploadFile = async () => {
     formData.append('description', uploadForm.value.description)
     // 移除硬编码的 organization_id，后端会从 Form 默认值或 User Context 获取
     
-    const response = await uploadKnowledgeBase(formData, (progressEvent) => {
+    await uploadKnowledgeBase(formData, (progressEvent) => {
       const progress = progressEvent.total ? Math.round((progressEvent.loaded * 100) / progressEvent.total) : 0
       const task = activeTasks.value.find(t => t.id === taskId)
       if (task) {

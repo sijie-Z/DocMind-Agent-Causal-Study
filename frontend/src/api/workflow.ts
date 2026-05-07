@@ -95,20 +95,19 @@ export const executeWorkflow = async (id: number, inputData?: Record<string, unk
 }
 
 // 流式执行
-export const executeWorkflowStream = (id: number, inputData: Record<string, unknown>, onEvent: (event: string, data: ExecutionResult | NodeResultItem) => void) => {
+export const executeWorkflowStream = (id: number, inputData: Record<string, unknown>, onEvent: (_event: string, _data: ExecutionResult | NodeResultItem) => void) => {
   const eventSource = new EventSource(`/api/v1/workflows/${id}/execute?stream=true&input_data=${encodeURIComponent(JSON.stringify(inputData))}`)
 
   eventSource.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data)
       onEvent(e.type, data)
-    } catch (err) {
-      console.error('Failed to parse event:', err)
+    } catch {
+      // Parse error silently
     }
   }
 
-  eventSource.onerror = (err) => {
-    console.error('EventSource error:', err)
+  eventSource.onerror = () => {
     eventSource.close()
   }
 

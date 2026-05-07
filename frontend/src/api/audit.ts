@@ -78,7 +78,7 @@ export const downloadAuditLogs = (params?: {
       window.URL.revokeObjectURL(downloadUrl)
       document.body.removeChild(a)
     })
-    .catch(err => {
-      console.error('Export audit logs failed:', err)
+    .catch(() => {
+      // Export failed silently
     })
 }

@@ -14,10 +14,10 @@ class MockWebSocket {
 
   readyState = MockWebSocket.OPEN
   url: string
-  onopen: ((ev: Event) => void) | null = null
-  onclose: ((ev: CloseEvent) => void) | null = null
-  onmessage: ((ev: MessageEvent) => void) | null = null
-  onerror: ((ev: Event) => void) | null = null
+  onopen: ((_ev: Event) => void) | null = null
+  onclose: ((_ev: CloseEvent) => void) | null = null
+  onmessage: ((_ev: MessageEvent) => void) | null = null
+  onerror: ((_ev: Event) => void) | null = null
   sentMessages: string[] = []
 
   constructor(url: string) {

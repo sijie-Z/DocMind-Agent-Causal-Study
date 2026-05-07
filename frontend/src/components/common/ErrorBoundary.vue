@@ -20,8 +20,7 @@ import { NCard, NResult, NButton, NSpace } from 'naive-ui'
 const router = useRouter()
 const hasError = ref(false)
 
-onErrorCaptured((err: Error) => {
-  console.error('[ErrorBoundary]', err)
+onErrorCaptured(() => {
   hasError.value = true
   return false
 })

@@ -442,17 +442,12 @@ import {
   CopyOutline,
   WarningOutline,
   CameraOutline,
-  MoonOutline,
-  SunnyOutline,
   TimeOutline,
   HardwareChipOutline,
   CheckmarkCircle,
-  CloseCircle,
   GlobeOutline,
   NotificationsOutline,
-  StatsChartOutline,
-  PieChartOutline,
-  InformationCircleOutline
+  StatsChartOutline
 } from '@vicons/ionicons5'
 import { getUserProfile, getUserStats, updateUserProfile, updatePassword, uploadAvatar, getUserActivities, generateApiKey as apiGenerateKey, revokeApiKey as apiRevokeKey, getMySessions, revokeMySession, getMyActivityLogs } from '@/api/user'
 import type { Activity, UserSession, UserAuditLog } from '@/api/user'
@@ -817,11 +812,6 @@ const goToRoute = (name: string) => {
   router.push({ name })
 }
 
-const isDarkTheme = computed({
-  get: () => appStore.themeMode === 'dark',
-  set: (val) => appStore.setTheme(val ? 'dark' : 'light')
-})
-
 const themeOptions = [
   { label: '浅色', value: 'light' },
   { label: '深色', value: 'dark' },
@@ -954,7 +944,6 @@ const handleResize = () => {
   storageChart?.resize()
   activityChart?.resize()
 }
-const loadingApiKey = ref(false)
 const generatingApiKey = ref(false)
 const revokingApiKey = ref(false)
 
@@ -1086,7 +1075,7 @@ const loadUserProfile = async () => {
       }
     }
   } catch (error) {
-    console.error('Failed to load profile:', error)
+    // Failed to load profile
     message.error(t('profile.loadUserFailed'))
   }
 }
@@ -1112,7 +1101,7 @@ const loadUserStats = async () => {
       storageUsage.value = Math.min(percentage, 100)
     }
   } catch (error) {
-    console.error('Failed to load stats:', error)
+    // Failed to load stats
     // 静默失败，显示0
   }
 }
@@ -1127,7 +1116,7 @@ const loadActivities = async () => {
       }))
     }
   } catch (error) {
-    console.error('Failed to load activities:', error)
+    // Failed to load activities
   }
 }
 
@@ -1136,7 +1125,7 @@ const loadSessions = async () => {
     const response = await getMySessions()
     sessions.value = response.data || []
   } catch (error) {
-    console.error('Failed to load sessions:', error)
+    // Failed to load sessions
   }
 }
 
@@ -1145,7 +1134,7 @@ const loadAuditLogs = async () => {
     const response = await getMyActivityLogs()
     auditLogs.value = response.data || []
   } catch (error) {
-    console.error('Failed to load audit logs:', error)
+    // Failed to load audit logs
   }
 }
 
@@ -1262,7 +1251,7 @@ onMounted(async () => {
       trustedDevices.value = new Set(JSON.parse(savedTrusted))
     }
   } catch (e) {
-    console.warn('Failed to load trusted devices:', e)
+    // Failed to load trusted devices
   }
 
   await loadUserProfile()

@@ -527,7 +527,7 @@ onMounted(async () => {
 
     initCharts()
   } catch (e) {
-    console.error('Failed to load admin dashboard:', e)
+    // Failed to load admin dashboard
     initCharts()
   }
 

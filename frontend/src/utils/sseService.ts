@@ -26,8 +26,8 @@ interface SSEMessage {
   rateLimit?: { limit?: number; remaining?: number; reset?: number }
 }
 
-type SSEEventHandler = (data: SSEMessage) => void
-type SSEStatusHandler = (status: 'connecting' | 'connected' | 'disconnected' | 'error') => void
+type SSEEventHandler = (_data: SSEMessage) => void
+type SSEStatusHandler = (_status: 'connecting' | 'connected' | 'disconnected' | 'error') => void
 
 class SSEService {
   private eventSource: EventSource | null = null
@@ -105,7 +105,7 @@ class SSEService {
       try {
         const token = (localStorage.getItem('docmind_token') || localStorage.getItem('paicongming_token') || getToken())?.replace(/"/g, '')
         if (!token) {
-          console.error('[SSE] No token found')
+          // No token found
           this.setStatus('error')
           return false
         }
@@ -136,7 +136,7 @@ class SSEService {
             retryAfter: retryAfter ? parseInt(retryAfter) : null,
             message: response.status === 429 ? '请求过于频繁，请稍后再试' : `HTTP错误: ${response.status}`
           }
-          console.error('[SSE] HTTP error:', rateLimitInfo)
+          // SSE HTTP error
           this.setStatus('error')
           this.emit('error', {
             type: 'error',
@@ -186,8 +186,8 @@ class SSEService {
                 } else if (data.type === 'retry') {
                   this.emit('retry', data)
                 }
-              } catch (e) {
-                console.error('[SSE] Parse error:', e)
+              } catch {
+                // SSE Parse error
               }
             }
           }
@@ -195,8 +195,8 @@ class SSEService {
 
         this.setStatus('disconnected')
         return true
-      } catch (error) {
-        console.error('[SSE] Connection error:', error)
+      } catch {
+        // SSE Connection error
         this.setStatus('error')
         return false
       }

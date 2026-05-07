@@ -89,7 +89,7 @@ export const getDocumentContent = async (id: string): Promise<AxiosResponse<{ da
 
 export const uploadKnowledgeBase = async (
   data: FormData,
-  onProgress?: (progressEvent: { loaded: number; total?: number }) => void
+  onProgress?: (_progressEvent: { loaded: number; total?: number }) => void
 ): Promise<AxiosResponse<{ data: KnowledgeBase }>> => {
   return request.post('/documents/upload', data, {
     headers: {

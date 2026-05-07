@@ -45,8 +45,8 @@ export const useAppStore = defineStore('app', () => {
     if (userStore.token) {
       if (themeSyncTimer) clearTimeout(themeSyncTimer)
       themeSyncTimer = setTimeout(() => {
-        updateUserProfile({ preferences: { theme: mode } }).catch(err => {
-          console.error('Failed to sync theme preference:', err)
+        updateUserProfile({ preferences: { theme: mode } }).catch(() => {
+          // Failed to sync theme preference
         })
       }, 500)
     }

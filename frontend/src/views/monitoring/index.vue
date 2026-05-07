@@ -546,7 +546,7 @@ const updateMetricsCharts = async () => {
     }
     
   } catch (error) {
-    console.error('更新指标图表失败:', error)
+    // 更新指标图表失败
   }
 }
 
@@ -590,7 +590,7 @@ const loadData = async () => {
       const notificationResponse = await request.get('/api/monitoring/notification/status')
       notificationStatus.value = notificationResponse.data
     } catch (error) {
-      console.warn('获取通知服务状态失败:', error)
+      // 获取通知服务状态失败
     }
 
   } catch (error: any) {

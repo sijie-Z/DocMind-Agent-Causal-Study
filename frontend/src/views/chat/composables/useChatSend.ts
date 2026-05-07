@@ -12,7 +12,7 @@ export function useChatSend(
   messages: { value: ChatMessage[] },
   attachedFiles: { value: AttachedFile[] },
   attachedFileIds: { value: string[] },
-  scrollToBottom: (behavior?: ScrollBehavior, force?: boolean) => void,
+  scrollToBottom: (_behavior?: ScrollBehavior, _force?: boolean) => void,
   fetchConversations: () => Promise<void>,
   isLoading: { value: boolean },
   isRetrieving: { value: boolean },

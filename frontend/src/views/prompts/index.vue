@@ -168,7 +168,6 @@ import { useDedupedMessage } from '@/utils/message'
 import { useI18n } from 'vue-i18n'
 import { AddOutline, TrashOutline, CreateOutline, CopyOutline, SparklesOutline, SearchOutline, DocumentTextOutline, PlayOutline } from '@vicons/ionicons5'
 import { getPrompts, createPrompt, updatePrompt, deletePrompt, seedDefaultPrompts, type PromptTemplate } from '@/api/prompt'
-import dayjs from 'dayjs'
 
 const router = useRouter()
 const message = useDedupedMessage()

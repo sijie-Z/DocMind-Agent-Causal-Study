@@ -340,7 +340,7 @@ onMounted(async () => {
 
     initChart()
   } catch (e) {
-    console.error('Failed to load dashboard data:', e)
+    // Failed to load dashboard data
     initChart()
   }
 

@@ -34,10 +34,10 @@ export function useThrottle<T>(value: Ref<T>, delay: number = 300): Ref<T> {
   return throttledValue
 }
 
-export function useDebounceFn<T extends (...args: any[]) => any>(
+export function useDebounceFn<T extends (..._args: any[]) => any>(
   fn: T,
   delay: number = 300
-): (...args: Parameters<T>) => void {
+): (..._args: Parameters<T>) => void {
   let timeout: ReturnType<typeof setTimeout> | null = null
 
   return (...args: Parameters<T>) => {
@@ -48,10 +48,10 @@ export function useDebounceFn<T extends (...args: any[]) => any>(
   }
 }
 
-export function useThrottleFn<T extends (...args: any[]) => any>(
+export function useThrottleFn<T extends (..._args: any[]) => any>(
   fn: T,
   delay: number = 300
-): (...args: Parameters<T>) => void {
+): (..._args: Parameters<T>) => void {
   let lastExecute = 0
 
   return (...args: Parameters<T>) => {

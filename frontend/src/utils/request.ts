@@ -153,8 +153,8 @@ request.interceptors.request.use(
 
 let isRefreshing = false
 type PendingRequest = {
-  resolve: (value: Promise<AxiosResponse>) => void
-  reject: (reason?: unknown) => void
+  resolve: (_value: Promise<AxiosResponse>) => void
+  reject: (_reason?: unknown) => void
   originalRequest: InternalAxiosRequestConfig
 }
 let requestsQueue: PendingRequest[] = []
@@ -232,7 +232,7 @@ request.interceptors.response.use(
     const requestId = getErrorRequestId(error)
 
     if (!silentError) {
-      console.error(`[Axios Error] 状态码: ${error.response?.status}${requestId ? ` | request_id=${requestId}` : ''}`, error.response?.data)
+      // Axios Error
     }
     if (error.response) {
       const { status, data } = error.response
@@ -302,7 +302,7 @@ request.interceptors.response.use(
           break
         case 500:
           errorMsg = errorMsg === '请求失败' ? `服务器内部错误: ${data?.detail ?? data?.message ?? '未知'}` : `服务器内部错误: ${errorMsg}`
-          console.error('[500 Error Details]:', data)
+          // 500 Error Details
           break
       }
       

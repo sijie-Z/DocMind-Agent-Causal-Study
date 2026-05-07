@@ -134,7 +134,7 @@ const loadLogs = async () => {
       pagination.value.itemCount = ((resData?.data as Record<string, unknown>)?.total as number) || 0
     }
   } catch (e) {
-    console.error('Failed to load audit logs:', e)
+    // Failed to load audit logs
   } finally {
     loading.value = false
   }
