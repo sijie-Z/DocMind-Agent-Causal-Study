@@ -21,7 +21,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app.core.database import AsyncSessionLocal
 from app.models.document import Document
-from worker.doc_consumer import process_document
+from app.worker.doc_processor import processor
 from sqlalchemy import select
 from app.core.config import settings
 
@@ -44,16 +44,8 @@ async def run():
         
         for doc in docs:
             print(f"\n📄 正在重新处理: {doc.filename} (ID: {doc.id})")
-            task = {
-                "document_id": doc.id,
-                "file_path": doc.file_path,
-                "organization_id": doc.organization_id,
-                "filename": doc.filename,
-                "file_type": doc.file_type
-            }
             try:
-                # 调用我们在 worker/doc_consumer.py 中修改过的带错误捕捉的函数
-                await process_document(task)
+                await processor.process(doc.id)
             except Exception as e:
                 print(f"💥 处理文档时崩溃: {e}")
 

@@ -8,6 +8,9 @@ venv/
 .venv/
 env/
 .env
+.env.docker
+.env.local
+.env.production
 
 # --- 前端 (Node) ---
 node_modules/

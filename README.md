@@ -87,9 +87,16 @@ DocMind 是一个基于 **RAG（Retrieval-Augmented Generation）** 架构的全
 - 支持 **多轮对话**上下文记忆
 - 答案附带 **来源引用**，可追溯原始文档
 
+### Agent 自主推理（ReAct）
+- **11 个内置工具**：知识库搜索、向量检索、文档摘要、关键词提取、对话管理、提示词模板
+- **ReAct 循环**：LLM 自主规划 → 调用工具 → 观察结果 → 继续推理，最多 10 轮迭代
+- **上下文管理**：自动压缩历史消息，保持 token 预算内
+- **技能学习**：成功的工具使用模式自动保存为可复用技能
+- **SSE 流式输出**：实时展示工具调用过程和推理步骤
+
 ### 企业级基础设施
 - **RBAC 权限体系**：用户 → 角色 → 组织三级管控
-- **JWT 认证** + API Key 双模式
+- **JWT 认证** + Token 黑名单（Redis）
 - **Prometheus + Grafana** 全链路监控告警
 - **审计日志**全量记录操作轨迹
 
@@ -111,6 +118,7 @@ DocMind 是一个基于 **RAG（Retrieval-Augmented Generation）** 架构的全
 | **消息队列** | Kafka（aiokafka） |
 | **对象存储** | MinIO（S3 兼容） |
 | **AI 模型** | DeepSeek / OpenAI 兼容 API（Chat + Embedding + Rerank） |
+| **Agent** | ReAct 循环 + 工具注册中心 + 上下文管理 + 技能学习 |
 | **文档解析** | LangChain + PyPDF + Unstructured + python-docx |
 | **前端框架** | Vue 3 + TypeScript + Vite |
 | **UI 组件** | Naive UI + ECharts + Vue Flow |
@@ -240,20 +248,27 @@ DocMind/
 │   └── pull_request_template.md     # PR 模板
 ├── backend/                         # FastAPI 后端
 │   ├── app/
-│   │   ├── api/v1/endpoints/        # 15 个 API 模块（auth, chat, knowledge, workflow...）
-│   │   ├── core/                    # 基础设施层（DB, ES, Kafka, MinIO, Redis, 安全, 熔断器）
-│   │   ├── models/                  # SQLAlchemy 数据模型（11 张表）
+│   │   ├── agent/                   # Agent 系统（registry, tools, loop, context, skills, subagent）
+│   │   ├── api/v1/endpoints/        # 14 个 API 模块（auth, chat, knowledge, agent, workflow...）
+│   │   ├── core/                    # 基础设施层（DB, ES, Kafka, MinIO, Redis, 安全, 熔断器, 链路追踪）
+│   │   ├── exceptions.py            # 统一异常层级（13 个异常类）
+│   │   ├── models/                  # SQLAlchemy 数据模型（12 张表）
+│   │   ├── rag/                     # RAG 管线（pipeline, retriever, reranker, cache, metrics）
 │   │   ├── schemas/                 # Pydantic 请求/响应模型
-│   │   └── services/                # 业务服务层（RAG, Chat, Auth, Workflow, Memory, Masking...）
-│   ├── tests/                       # pytest 测试（132 个用例）
+│   │   └── services/                # 业务服务层（17 个服务模块）
+│   ├── tests/                       # pytest 测试（160 个用例）
 │   │   ├── test_auth_service.py     # JWT / 密码哈希 / Token 黑名单 / RBAC
 │   │   ├── test_masking_service.py  # PII 脱敏（手机/邮箱/身份证/IP）
 │   │   ├── test_circuit_breaker.py  # 熔断器状态机
 │   │   ├── test_semantic_cache.py   # 语义缓存余弦相似度
 │   │   ├── test_rag_service.py      # RRF 融合 / 查询意图 / 上下文压缩
+│   │   ├── test_rag_cache.py        # 精确缓存 + 语义缓存序列化/量化
+│   │   ├── test_rag_metrics.py      # 指标快照 / 百分位数 / 窗口过滤
+│   │   ├── test_exceptions.py       # 异常层级 / 状态码映射 / 错误码
 │   │   ├── test_config.py           # 配置校验（弱密钥拒绝）
 │   │   ├── test_document_parser.py  # 文档解析
-│   │   └── test_auth_api.py         # API 端点集成测试
+│   │   ├── test_auth_api.py         # API 端点集成测试
+│   │   └── test_memory_service.py   # 记忆系统（52 个用例）
 │   ├── lib/rag/                     # RAG 工具库（chunk, vectorizer, retriever, hybrid, BM25）
 │   ├── worker/                      # 独立 Kafka 消费者（文档处理 Worker）
 │   ├── config/                      # Prometheus + Grafana 监控配置
@@ -315,7 +330,8 @@ DocMind/
 | 认证 | `/api/v1/auth/*` | 登录、注册、Token 刷新 |
 | 用户 | `/api/v1/users/*` | 用户 CRUD、角色分配 |
 | 知识库 | `/api/v1/knowledge/*` | 文档上传、检索、索引管理 |
-| 聊天 | `/api/v1/chat/*` | WebSocket 流式对话、会话管理 |
+| 聊天 | `/api/v1/chat/*` | WebSocket/SSE 流式对话、会话管理 |
+| Agent | `/api/v1/agent/*` | ReAct Agent 对话（SSE）、工具列表、技能列表 |
 | 工作流 | `/api/v1/workflow/*` | DAG 可视化编排 |
 | 组织 | `/api/v1/organizations/*` | 多租户管理 |
 | 监控 | `/api/v1/monitoring/*` | 系统指标、健康检查 |
@@ -327,7 +343,7 @@ DocMind/
 
 ## 测试
 
-### 后端测试（132 个用例）
+### 后端测试（160 个用例）
 
 ```bash
 cd backend
@@ -339,10 +355,14 @@ python -m pytest tests/ -v
 - **MaskingService**：PII 脱敏（手机号/邮箱/身份证/IP/银行卡）、还原
 - **CircuitBreaker**：熔断器状态机（CLOSED→OPEN→HALF_OPEN→CLOSED）、降级返回值
 - **SemanticCache**：余弦相似度边界情况
-- **RagService**：RRF 融合、查询意图分类、上下文压缩、长查询优化、查询重写
+- **RagService**：RRF 融合、查询意图分类、上下文压缩、查询重写
+- **RAG Cache**：精确缓存 + 语义缓存序列化/量化
+- **RAG Metrics**：指标快照、百分位数、窗口过滤
+- **Exceptions**：异常层级、状态码映射、错误码生成
 - **Config**：弱密钥拒绝、连接池上限、限流路径排除
 - **DocumentParser**：TXT/DOCX 解析、元数据提取
 - **Auth API**：注册密码校验、缺少字段、无效邮箱
+- **MemoryService**：短期/长期/工作/反思记忆 + Agent 记忆系统集成（52 个用例）
 
 ### 前端测试（91 个用例）
 
@@ -433,9 +453,45 @@ chat/index.vue (230 行)
   └─ 缓存：精确缓存 + 语义缓存（余弦相似度 ≥ 0.92）
 ```
 
+### 基础设施健壮性
+
+| 层级 | 问题 | 方案 |
+|------|------|------|
+| **依赖注入** | API base URL 用 `split()` 拼接，自定义代理静默失败 | `_normalize_base_url()` — `urlparse` 验证 + 已知后缀剥离 |
+| **缓存** | Redis 故障时内存缓存无限增长 | `BoundedLRUCache(OrderedDict)` — 上限 1000 条 LRU 淘汰 |
+| **Redis/ES 连接** | 模块级 `redis_client = None` 导入后永不更新 | `_RedisProxy` 代理模式 — 属性访问委托给 holder，延迟初始化 |
+| **数据一致性** | 文档标记 INDEXED 后才开始 ES 索引 | ES 索引成功后再更新 DB 状态 |
+| **前端容错** | 渲染崩溃白屏 | `ErrorBoundary` 全局包裹，友好错误页 + 刷新/回首页 |
+| **请求重试** | 网络抖动/502 直接失败 | Axios 重试拦截器 — 3 次指数退避（1s/2s/4s） |
+| **WebSocket** | 固定 5s 重连，服务端未恢复时密集请求 | 指数退避（1s→16s + jitter） |
+| **类型安全** | `catch (error: any)` 破坏 TypeScript 推断 | `_extractErrorMessage` 辅助函数 + `unknown` 类型 |
+
 ---
 
 ## 更新日志
+
+### 2026-05-09（架构深度优化）
+
+**后端**
+- API URL 校验：`_normalize_base_url()` 替换脆弱的 `split()` 解析
+- 有界 LRU 缓存：Redis 故障时内存不再无限增长
+- Redis/ES 生命周期：`_RedisProxy` 代理模式修复导入绑定 bug
+- 知识库构建：INDEXED 状态改为 ES 索引成功后才标记
+
+**前端**
+- ErrorBoundary 全局包裹，渲染崩溃不再白屏
+- Axios 重试拦截器：502/503/504 + 网络错误自动重试 3 次
+- WebSocket 指数退避重连（1s→16s + jitter）
+- `catch (error: any)` → 类型安全的 `_extractErrorMessage`
+
+**验证**：后端 160 测试 + 前端 91 测试 + 零类型错误
+
+### 2026-05-08（Agent 系统 + 异常体系）
+
+- ReAct Agent：11 个内置工具、上下文压缩、技能学习、子 Agent 委托
+- 统一异常层级：13 个异常类，替换裸 HTTPException
+- XSS 修复、内存泄漏修复、Landing/Help/About 页面重写
+- 后端清理：删除重复 MinIO 模块、接入 OpenTelemetry
 
 ### 2026-05-07（TypeScript 类型安全 & 代码质量）
 

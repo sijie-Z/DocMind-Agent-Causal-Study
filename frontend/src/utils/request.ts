@@ -339,4 +339,43 @@ request.interceptors.response.use(
   }
 )
 
+// ---------------------------------------------------------------------------
+// Retry interceptor for transient failures (network errors, 5xx)
+// ---------------------------------------------------------------------------
+const MAX_RETRIES = 3
+const RETRY_BASE_DELAY_MS = 1000
+const RETRYABLE_STATUS = new Set([502, 503, 504])
+
+request.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const config = error.config as ExtendedAxiosConfig | undefined
+    if (!config) return Promise.reject(error)
+
+    // Don't retry if already retried by token-refresh logic
+    if (config._retry) return Promise.reject(error)
+
+    // Only retry idempotent methods by default
+    const method = (config.method ?? 'get').toLowerCase()
+    const isIdempotent = method === 'get' || method === 'head'
+    if (!isIdempotent) return Promise.reject(error)
+
+    // Check if the error is retryable
+    const isNetworkError = !error.response
+    const isRetryableStatus = error.response ? RETRYABLE_STATUS.has(error.response.status) : false
+    if (!isNetworkError && !isRetryableStatus) return Promise.reject(error)
+
+    // Track retry count
+    const retryCount = (config as ExtendedAxiosConfig & { __retryCount?: number }).__retryCount ?? 0
+    if (retryCount >= MAX_RETRIES) return Promise.reject(error)
+
+    // Exponential backoff with jitter
+    const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount) + Math.random() * 500
+    await new Promise((resolve) => setTimeout(resolve, delay))
+
+    ;(config as ExtendedAxiosConfig & { __retryCount: number }).__retryCount = retryCount + 1
+    return request(config)
+  }
+)
+
 export default request

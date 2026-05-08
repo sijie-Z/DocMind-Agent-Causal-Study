@@ -450,7 +450,7 @@ class DocumentParser:
                     return False
                 
                 # 更新文档状态为处理中（忽略 SQLAlchemy Column 类型提示报警）
-                document.status = DocumentStatus.PROCESSING  # type: ignore
+                document.status = DocumentStatus.PARSING
                 await session.commit()
                 
                 try:

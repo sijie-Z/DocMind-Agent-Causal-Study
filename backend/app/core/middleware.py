@@ -243,7 +243,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         current_count = 0
 
         try:
-            if redis_client is not None:
+            if redis_client:
                 current_count = int(await redis_client.incr(key))
                 if current_count == 1:
                     await redis_client.expire(key, self.window_seconds + 1)

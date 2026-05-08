@@ -199,6 +199,10 @@
           <template #icon><n-icon><SearchOutline /></n-icon></template>
           {{ t('dashboard.searchKB') }}
         </n-button>
+        <n-button type="warning" size="large" class="shadow-md hover:shadow-lg transition-shadow" @click="$router.push('/agent')">
+          <template #icon><n-icon><HardwareChipOutline /></n-icon></template>
+          Agent Mode
+        </n-button>
       </div>
     </div>
   </div>
@@ -216,7 +220,8 @@ import { CHART_COLORS } from '@/utils/chartTheme'
 import {
   ChatbubbleEllipsesOutline, TextOutline, DocumentOutline,
   ServerOutline, CloudUploadOutline, SearchOutline, TimeOutline,
-  ChevronForwardOutline, AnalyticsOutline, TrendingUpOutline, FlashOutline
+  ChevronForwardOutline, AnalyticsOutline, TrendingUpOutline, FlashOutline,
+  HardwareChipOutline
 } from '@vicons/ionicons5'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
@@ -302,6 +307,8 @@ const updateChart = () => {
   chart.setOption(option)
 }
 
+const handleResize = () => chart?.resize()
+
 watch(() => stats.value.activity_trend, updateChart, { deep: true })
 
 onMounted(async () => {
@@ -340,15 +347,14 @@ onMounted(async () => {
 
     initChart()
   } catch (e) {
-    // Failed to load dashboard data
     initChart()
   }
 
-  window.addEventListener('resize', () => chart?.resize())
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', () => chart?.resize())
+  window.removeEventListener('resize', handleResize)
   chart?.dispose()
   chart = null
 })

@@ -7,7 +7,7 @@ import logging
 import asyncio
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Form
+from fastapi import APIRouter, Depends, UploadFile, File, status, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,6 +20,7 @@ from app.core.security import get_current_user, permission_required
 from app.core.minio_client import minio_client
 from app.core.kafka_client import kafka_producer
 from app.core.config import settings
+from app.exceptions import AppError, AuthorizationError, NotFoundError
 from app.models.rbac import PermissionType
 
 router = APIRouter()
@@ -215,12 +216,11 @@ async def upload_document(
             }
         }
         
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"Upload failed trace: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"上传失败: {str(e)}"
-        )
+        raise AppError(f"上传失败: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "上传失败")
 
 @router.get("/{document_id}", dependencies=[Depends(get_current_user)])
 async def get_document_status(
@@ -234,11 +234,11 @@ async def get_document_status(
     try:
         doc = await db.get(Document, document_id)
         if not doc:
-            raise HTTPException(status_code=404, detail="文档不存在")
+            raise NotFoundError("文档不存在")
 
         # 鉴权：只能查看自己上传的或同组织的
         if doc.organization_id != current_user.organization_id and doc.uploaded_by != current_user.id:
-            raise HTTPException(status_code=403, detail="无权查看该文档")
+            raise AuthorizationError("无权查看该文档")
 
         # 状态映射：将内部状态转换为前端期望的状态
         status_map = {
@@ -273,11 +273,11 @@ async def get_document_status(
                 "upload_source": "聊天上传" if (doc.description and ("来自聊天" in doc.description or "uploaded from chat" in doc.description.lower())) else "知识库上传"
             }
         }
-    except HTTPException:
+    except (NotFoundError, AuthorizationError):
         raise
     except Exception as e:
         logger.error(f"Get document failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="获取文档状态失败")
+        raise AppError("获取文档状态失败")
 
 @router.get("/{document_id}/content", dependencies=[Depends(get_current_user)])
 async def get_document_full_content(
@@ -291,11 +291,11 @@ async def get_document_full_content(
     try:
         doc = await db.get(Document, document_id)
         if not doc:
-            raise HTTPException(status_code=404, detail="文档不存在")
-            
+            raise NotFoundError("文档不存在")
+
         # 鉴权
         if doc.organization_id != current_user.organization_id and doc.uploaded_by != current_user.id:
-            raise HTTPException(status_code=403, detail="无权查看该文档内容")
+            raise AuthorizationError("无权查看该文档内容")
             
         # 从 ES 中获取该文档的所有分块并按 index 排序
         from app.core.elasticsearch import ElasticsearchTools
@@ -330,9 +330,11 @@ async def get_document_full_content(
                 "suggested_tags": build_suggested_tags(full_text),
             }
         }
+    except (NotFoundError, AuthorizationError):
+        raise
     except Exception as e:
         logger.error(f"Get document content failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="获取文档内容失败")
+        raise AppError("获取文档内容失败")
 
 @router.get("/{document_id}/download", dependencies=[Depends(get_current_user)])
 async def download_document(
@@ -343,15 +345,15 @@ async def download_document(
     try:
         doc = await db.get(Document, document_id)
         if not doc:
-            raise HTTPException(status_code=404, detail="文档不存在")
+            raise NotFoundError("文档不存在")
 
         if doc.organization_id != current_user.organization_id and doc.uploaded_by != current_user.id:
-            raise HTTPException(status_code=403, detail="无权下载该文档")
+            raise AuthorizationError("无权下载该文档")
 
         url = minio_client.get_presigned_url(doc.file_path)
         return RedirectResponse(url=url)
-    except HTTPException:
+    except (NotFoundError, AuthorizationError):
         raise
     except Exception as e:
         logger.error(f"Download document failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="下载文档失败")
+        raise AppError("下载文档失败")

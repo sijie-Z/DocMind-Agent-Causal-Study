@@ -219,7 +219,8 @@ import {
   HomeOutline,
   DocumentTextOutline,
   InformationCircleOutline,
-  HelpCircleOutline
+  HelpCircleOutline,
+  HardwareChipOutline
 } from '@vicons/ionicons5'
 
 const route = useRoute()
@@ -403,6 +404,11 @@ const menuOptions = computed<MenuOption[]>(() => {
       label: t('menu.workflow'),
       key: 'Workflow',
       icon: () => h(NIcon, null, { default: () => h(GitNetworkOutline) })
+    },
+    {
+      label: 'Agent',
+      key: 'Agent',
+      icon: () => h(NIcon, null, { default: () => h(HardwareChipOutline) })
     }
   ]
   return options.filter(item => item.show !== false)

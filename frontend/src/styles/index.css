@@ -102,16 +102,3 @@ html, body {
   opacity: 0;
 }
 
-/* 自定义Naive UI样式覆盖 */
-/* .n-button--primary-type {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-}
-
-.n-button--primary-type:hover {
-  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-}
-
-.n-button--primary-type:active {
-  background: linear-gradient(135deg, #4e5fc6 0%, #5a3780 100%);
-} */

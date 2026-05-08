@@ -4,7 +4,126 @@
 
 ---
 
-## 2026-05-07
+## 2026-05-09
+
+### 架构深度优化（10 项改进）
+
+#### 后端
+
+| 改进 | 文件 | 说明 |
+|------|------|------|
+| API URL 校验 | `dependencies.py` | 新增 `_normalize_base_url()` — `urlparse` 验证 + 已知后缀剥离，替换脆弱的 `split()` |
+| 有界 LRU 缓存 | `rag/cache.py` | 新增 `BoundedLRUCache(OrderedDict)` — Redis 故障时内存缓存不再无限增长 |
+| Redis 生命周期 | `core/redis.py` | `_RedisHolder` + `_RedisProxy` 代理模式 — 解决 Python 导入绑定导致 `redis_client` 始终为 `None` 的问题 |
+| ES 生命周期 | `core/elasticsearch.py` | 同上，`_ESHolder` + `_ESProxy` 代理模式 |
+| 知识库构建顺序 | `services/knowledge_service.py` | INDEXED 状态改为 ES 索引成功后才标记，避免 DB/ES 状态不一致 |
+
+#### 前端
+
+| 改进 | 文件 | 说明 |
+|------|------|------|
+| ErrorBoundary | `App.vue` | 全局包裹 `<ErrorBoundary>` — 渲染异常时显示友好错误页 |
+| 请求重试 | `utils/request.ts` | 新增重试拦截器 — 网络错误/502/503/504 自动重试 3 次，指数退避 |
+| WS 重连退避 | `utils/websocket.ts` | 固定 5s 间隔改为指数退避（1s→2s→4s→8s→16s + jitter） |
+| 类型安全 | `stores/user.ts` | `catch (error: any)` → `catch (error: unknown)` + `_extractErrorMessage` 辅助函数 |
+
+### 稳定性验证
+
+- 后端 160 个测试全部通过
+- 前端 `vue-tsc --noEmit` 零类型错误
+- 前端 91 个测试全部通过
+- 端到端数据流验证通过（前端 SSE → 后端 RAG 管线 → LLM 流式响应）
+- Agent 数据流验证通过（前端 SSE → AgentLoop → 工具注册中心 → 工具执行 → 响应）
+
+### 文档更新
+
+- 更新 `CLAUDE.md` — 反映当前完整项目状态
+- 更新 `AGENT_ARCHITECTURE.md` — 工具表扩展至 11 个
+- 更新 `CHANGELOG.md` — 补充 05-08 变更记录
+- 更新 `README.md` — 新增 Agent 特性、API 端点、测试覆盖范围
+
+---
+
+## 2026-05-08
+
+### Agent 系统（核心新增）
+
+基于 NousResearch/hermes-agent 架构，实现 ReAct 风格自主 Agent。
+
+**后端新增模块（`app/agent/`）：**
+
+| 文件 | 职责 | 说明 |
+|------|------|------|
+| `registry.py` | 工具注册中心 | `@register_tool` 装饰器 + JSON Schema 自动生成，`ToolRegistry` 单例 |
+| `tools.py` | 11 个内置工具 | 搜索(2)、分析(2)、文档管理(2)、对话管理(2)、提示词(2)、工具(1) |
+| `loop.py` | ReAct 核心循环 | LLM → tool_calls → execute → append → repeat，最大 10 轮迭代 |
+| `context.py` | 上下文窗口管理 | 保留 system prompt + 最近 N 条，压缩旧消息 |
+| `skills.py` | 技能学习系统 | Redis 存储，关键词匹配触发，30 天 TTL |
+| `subagent.py` | 子 Agent 委托 | 隔离上下文，受限工具集，并行执行 |
+| `service.py` | 服务层 | 统一入口，连接 loop/tools/skills/context |
+
+**API 端点：**
+- `POST /api/v1/agent/chat` — SSE 流式 Agent 对话
+- `GET /api/v1/agent/tools` — 列出可用工具
+- `GET /api/v1/agent/skills` — 列出已学习技能
+
+**前端新增：**
+- `views/agent/index.vue` — Agent 对话页面，实时展示 tool_call/tool_result/chunk/error
+- `api/agent.ts` — SSE 流式 API 封装
+- 路由 + 侧边栏菜单已注册
+
+### 异常体系重构
+
+新增 `app/exceptions.py`，统一异常层级：
+
+| 异常类 | HTTP 状态码 | 用途 |
+|--------|------------|------|
+| `AppError` | 500 | 基类 |
+| `ValidationError` | 400 | 参数校验 |
+| `AuthenticationError` | 401 | 认证失败 |
+| `TokenExpiredError` | 401 | Token 过期 |
+| `TokenBlacklistedError` | 401 | Token 已注销 |
+| `AccountLockedError` | 401 | 账号锁定 |
+| `AuthorizationError` | 403 | 权限不足 |
+| `NotFoundError` | 404 | 资源不存在 |
+| `ConflictError` | 409 | 资源冲突 |
+| `RateLimitError` | 429 | 限流 |
+| `ExternalServiceError` | 502 | 外部服务异常 |
+| `PipelineError` | 500 | RAG 管线异常 |
+| `StorageError` | 500 | 存储异常 |
+
+已替换 auth/documents/chat 端点中的 `HTTPException`。
+
+### 前端优化
+
+- **XSS 修复**：`Markdown.vue` 添加 DOMPurify 净化，关闭 `html: true`
+- **内存泄漏修复**：`dashboard/user.vue` 提取匿名 resize 回调为命名函数
+- **Landing page 重写**：专业级着陆页（Hero + 4 步流程 + 特性卡片 + Agent 展示）
+- **SystemHelp 升级**：从静态文本升级为完整帮助中心（快速开始、特性、FAQ、快捷键）
+- **SystemAbout 升级**：从占位页升级为架构概览（技术栈、数据流、系统信息）
+- **Dashboard 优化**：添加 Agent Mode 快捷入口
+- **依赖清理**：移除未使用的 `recharts`，类型包移至 devDependencies
+
+### 后端清理
+
+- 删除重复 `app/core/minio.py`，统一使用 `minio_client.py` 单例
+- `MinioClient` 新增 `remove_object` 方法
+- `file_service.py` 迁移至新 MinIO 客户端
+- 删除所有 `.pyc` 缓存文件
+- 接入 OpenTelemetry 链路追踪（`ENABLE_TRACING` 环境变量控制）
+- `DocumentStatus.PROCESSING` → `DocumentStatus.PARSING` 枚举修复
+
+### 测试
+
+- 新增 `tests/test_exceptions.py` — 9 个用例
+- 新增 `tests/test_rag_cache.py` — 11 个用例
+- 新增 `tests/test_rag_metrics.py` — 10 个用例
+- 总计 **160 个后端测试**，全部通过
+
+### 文档
+
+- 新增 `AGENT_ARCHITECTURE.md` — Agent 架构文档（模块说明、架构图、hermes-agent 对比）
+- 更新 `CLAUDE.md` — 反映当前项目结构（Agent 系统、RAG 管线、异常体系）
 
 ### 测试体系搭建
 
@@ -165,5 +284,5 @@
 | AI/RAG | DeepSeek API + OpenAI 兼容 Embedding + LangChain 文档解析 |
 | 前端 | Vue 3 + TypeScript + Vite + Naive UI + Pinia + Vue Router |
 | 安全 | JWT + RBAC + Token 黑名单 + bcrypt + CORS + 限流 |
-| 测试 | pytest (132) + Vitest (49) |
+| 测试 | pytest (160) + Vitest (91) |
 | CI/CD | GitHub Actions + Dependabot |

@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, users, files, chat, knowledge, organizations, monitoring, documents, notifications, prompts, manuals, workflow, memory
+from app.api.v1.endpoints import auth, users, files, chat, knowledge, organizations, monitoring, documents, notifications, prompts, manuals, workflow, memory, agent
 
 # 创建API路由
 api_router = APIRouter()
@@ -24,3 +24,4 @@ api_router.include_router(prompts.router, prefix="/prompts", tags=["提示词管
 api_router.include_router(manuals.router, prefix="/manuals", tags=["操作手册"])
 api_router.include_router(workflow.router, prefix="/workflows", tags=["Agent工作流"])
 api_router.include_router(memory.router, prefix="/memory", tags=["Agent记忆"])
+api_router.include_router(agent.router, prefix="/agent", tags=["智能Agent"])

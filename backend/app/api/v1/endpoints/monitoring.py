@@ -236,7 +236,7 @@ async def get_alerts(
         })
 
     try:
-        if redis_client is not None:
+        if redis_client:
             await redis_client.ping()
     except Exception:
         alerts.append({
@@ -328,7 +328,7 @@ async def receive_alertmanager_webhook(request: Request):
         is_duplicate = False
         cache_key = f"alert:dedup:{dedup_key}"
         try:
-            if redis_client is not None:
+            if redis_client:
                 if await redis_client.exists(cache_key):
                     is_duplicate = True
                 else:
@@ -494,7 +494,7 @@ async def health_check(
 
     # Redis 健康检查
     try:
-        if redis_client is not None:
+        if redis_client:
             await redis_client.ping()
             services["redis"] = "connected"
         else:

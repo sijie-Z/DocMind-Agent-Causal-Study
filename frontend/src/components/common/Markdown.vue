@@ -12,8 +12,9 @@
 import { computed, onMounted, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
+import DOMPurify from 'dompurify'
 import mdKatex from 'markdown-it-katex'
-import 'highlight.js/styles/github-dark.css' // 默认使用 github-dark 风格
+import 'highlight.js/styles/github-dark.css'
 import 'katex/dist/katex.min.css'
 
 interface Props {
@@ -22,10 +23,8 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// 初始化 markdown-it
-// 小白说明：这里配置了“翻译官”的规则，比如遇到代码要用 highlight.js 来染色
 const md: MarkdownIt = new MarkdownIt({
-  html: true,
+  html: false,
   linkify: true,
   typographer: true,
   highlight: (str: string, lang: string): string => {
@@ -46,7 +45,11 @@ md.use(mdKatex)
 // 渲染内容
 const renderedContent = computed(() => {
   if (!props.content) return ''
-  return md.render(props.content)
+  const raw = md.render(props.content)
+  return DOMPurify.sanitize(raw, {
+    ADD_TAGS: ['math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'mfrac'],
+    ADD_ATTR: ['xmlns', 'mathvariant'],
+  })
 })
 
 // 为代码块添加复制按钮的逻辑
@@ -58,13 +61,16 @@ const addCopyButtons = () => {
 
     const button = document.createElement('button')
     button.className = 'copy-btn'
-    button.textContent = '复制'
+    button.setAttribute('data-state', 'idle')
+    button.textContent = 'Copy'
     button.onclick = () => {
       const code = block.querySelector('code')?.innerText || ''
       navigator.clipboard.writeText(code).then(() => {
-        button.textContent = '已复制!'
+        button.setAttribute('data-state', 'copied')
+        button.textContent = 'Copied!'
         setTimeout(() => {
-          button.textContent = '复制'
+          button.setAttribute('data-state', 'idle')
+          button.textContent = 'Copy'
         }, 2000)
       })
     }

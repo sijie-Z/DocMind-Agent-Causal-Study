@@ -3,7 +3,18 @@ import { ref, computed, watch } from 'vue'
 import { loginWithJson, register as apiRegister, getUserProfile } from '@/api/auth'
 import { setToken, setRefreshToken, removeToken, getToken } from '@/utils/auth'
 import type { UserInfo, LoginForm, RegisterForm } from '@/types/user'
+import type { AxiosError } from 'axios'
 import { useAppStore } from './app'
+
+function _extractErrorMessage(error: unknown, fallback: string): string {
+  const axiosErr = error as AxiosError<{ message?: string; detail?: string }>
+  return (
+    axiosErr.response?.data?.message ??
+    axiosErr.response?.data?.detail ??
+    (error instanceof Error ? error.message : null) ??
+    fallback
+  )
+}
 
 export const useUserStore = defineStore('user', () => {
   // 状态
@@ -98,14 +109,14 @@ export const useUserStore = defineStore('user', () => {
       }
 
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        message: error.response?.data?.message ?? error.response?.data?.detail ?? error.message ?? '登录失败'
+        message: _extractErrorMessage(error, '登录失败')
       }
     }
   }
-  
+
   const register = async (form: RegisterForm) => {
     try {
       const response = await apiRegister(form)
@@ -118,10 +129,10 @@ export const useUserStore = defineStore('user', () => {
         if (payload.user_info) userInfo.value = payload.user_info as UserInfo
       }
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        message: error.response?.data?.message ?? error.response?.data?.detail ?? '注册失败，请检查输入信息'
+        message: _extractErrorMessage(error, '注册失败，请检查输入信息')
       }
     }
   }

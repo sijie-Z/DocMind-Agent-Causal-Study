@@ -22,7 +22,6 @@ import { getToken } from '@/utils/auth'
 class WebSocketService {
   private ws: WebSocket | null = null
   private url: string
-  private reconnectInterval = 5000
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private messageHandlers: Map<string, (_data: WebSocketMessage) => void> = new Map()
@@ -65,11 +64,12 @@ class WebSocketService {
 
     const cleanToken = rawToken.replace(/"/g, '')
 
-    const wsUrl = `${this.getWsBaseUrl()}/api/v1/chat/ws?token=${cleanToken}&user_id=${userId}${conversationId ? `&conversation_id=${conversationId}` : ''}`
+    const wsUrl = `${this.getWsBaseUrl()}/api/v1/chat/ws?user_id=${userId}${conversationId ? `&conversation_id=${conversationId}` : ''}`
 
     try {
       this.manualDisconnect = false
-      this.ws = new WebSocket(wsUrl)
+      // Pass token via WebSocket subprotocol (not query param) for security
+      this.ws = new WebSocket(wsUrl, [`auth.${cleanToken}`])
       this.setupEventListeners()
     } catch {
       // Exception during connection setup
@@ -169,15 +169,18 @@ class WebSocketService {
       return
     }
 
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s + jitter
+    const baseDelay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 16000)
+    const jitter = Math.random() * 1000
+    const delay = baseDelay + jitter
+
     this.reconnectAttempts++
 
     setTimeout(() => {
       if (this.currentUserId > 0) {
-        this.connect(this.currentUserId) 
-      } else {
-        // Cannot reconnect: Invalid currentUserId
+        this.connect(this.currentUserId)
       }
-    }, this.reconnectInterval)
+    }, delay)
   }
 
   disconnect() {

@@ -182,7 +182,7 @@ class KnowledgeSearchNodeExecutor(NodeExecutor):
     """知识库搜索节点执行器"""
 
     async def execute(self, state: WorkflowState) -> Dict[str, Any]:
-        from app.services.rag_service import RAGService
+        from app.services.rag_service import rag_service
 
         # 获取查询
         query = state.get("input", {}).get("text", "")
@@ -198,9 +198,8 @@ class KnowledgeSearchNodeExecutor(NodeExecutor):
         score_threshold = self.node.data.get("scoreThreshold", self.node.data.get("score_threshold", 0.5))
 
         # 搜索知识库
-        rag_service = RAGService()
         organization_id = state.get("input", {}).get("organization_id", 1)
-        docs = await rag_service.search(query, organization_id=organization_id, top_k=top_k)
+        docs = await rag_service.search_knowledge_base(query, organization_id=organization_id, top_k=top_k)
 
         # 过滤低相关性结果
         filtered_docs = [d for d in docs if d.get("score", 0) >= score_threshold]

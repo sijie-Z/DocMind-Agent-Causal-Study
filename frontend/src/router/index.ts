@@ -161,6 +161,15 @@ export const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'agent',
+        name: 'Agent',
+        component: () => import('@/views/agent/index.vue'),
+        meta: {
+          title: 'Agent',
+          icon: 'hardware-chip'
+        }
+      },
+      {
         path: 'system-help',
         name: 'SystemHelp',
         component: () => import('@/views/systemHelp/index.vue'),

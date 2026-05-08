@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional, List, AsyncGenerator
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException, Body
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func, delete, or_
@@ -22,6 +22,7 @@ from app.services.rag_service import rag_service
 from app.services.semantic_cache import semantic_cache
 from app.services.memory_service import get_memory_system
 from app.core.security import get_current_user
+from app.exceptions import NotFoundError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -353,7 +354,7 @@ async def clear_conversation_messages(
         )
         session = (await db.execute(stmt)).scalar_one_or_none()
         if not session:
-            raise HTTPException(status_code=404, detail="会话不存在")
+            raise NotFoundError("会话不存在")
         delete_stmt = delete(ChatMessage).where(ChatMessage.session_id == conversation_id)
         await db.execute(delete_stmt)
         await db.commit()
@@ -471,10 +472,9 @@ async def delete_conversation(
         session = (await db.execute(stmt)).scalar_one_or_none()
         if not session:
             return {"success": False, "message": "会话不存在或无权删除"}
-        from sqlalchemy import text
+        # Delete messages first (FK constraint), then the session
         await db.execute(
-            text("DELETE FROM chat_messages WHERE session_id = :session_id"),
-            {"session_id": conversation_id},
+            delete(ChatMessage).where(ChatMessage.session_id == conversation_id)
         )
         await db.delete(session)
         await db.commit()
@@ -621,10 +621,21 @@ async def get_rag_metrics(
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: str = Query(None),
     user_id: int = Query(None),
     conversation_id: Optional[str] = Query(None),
 ):
+    # Extract token from Sec-WebSocket-Protocol header (auth.<token>)
+    # Falls back to query param for backward compatibility
+    token = None
+    protocols = websocket.headers.get("sec-websocket-protocol", "")
+    for proto in protocols.split(","):
+        proto = proto.strip()
+        if proto.startswith("auth."):
+            token = proto[5:]
+            break
+    if not token:
+        token = websocket.query_params.get("token")
+
     if not token:
         await websocket.close(code=4003, reason="Token required")
         return
@@ -638,6 +649,7 @@ async def websocket_endpoint(
         await websocket.close(code=4002, reason=str(e))
         return
 
+    # Accept the auth subprotocol so the client knows it was accepted
     await manager.connect(websocket)
 
     try:

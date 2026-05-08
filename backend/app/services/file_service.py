@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.services.document_parser import DocumentParser
-from app.core.minio import get_minio_client
+from app.core.minio_client import minio_client
 
 logger = logging.getLogger(__name__)
 
@@ -94,16 +94,13 @@ class FileUploadService:
             文件访问URL
         """
         try:
-            minio_client = get_minio_client()
-            
             # 上传文件
             from io import BytesIO
             minio_client.put_object(
-                settings.MINIO_BUCKET_NAME,
-                object_name,
-                BytesIO(file_content),
+                object_name=object_name,
+                data=BytesIO(file_content),
                 length=len(file_content),
-                content_type=content_type
+                content_type=content_type,
             )
             
             # 生成访问URL
@@ -129,15 +126,14 @@ class FileUploadService:
         try:
             # 1. 尝试从 MinIO 删除
             try:
-                minio_client = get_minio_client()
                 # 如果是完整的 URL，提取对象名
                 object_name = file_path
                 if "://" in file_path:
                     # 假设 URL 格式为 http://endpoint/bucket/object_name
                     parts = file_path.split("/")
                     object_name = "/".join(parts[4:]) if len(parts) > 4 else parts[-1]
-                
-                minio_client.remove_object(settings.MINIO_BUCKET_NAME, object_name)
+
+                minio_client.remove_object(object_name)
                 logger.info(f"已从 MinIO 删除文件: {object_name}")
             except Exception as e:
                 logger.warning(f"从 MinIO 删除文件失败 (可能文件不存在): {str(e)}")
@@ -650,10 +646,9 @@ class FileUploadService:
                 
                 # 从MinIO删除文件
                 try:
-                    minio_client = get_minio_client()
                     # 从文件路径中提取对象名称
                     object_name = document.file_path.split('/')[-1]
-                    minio_client.remove_object(settings.MINIO_BUCKET_NAME, object_name)
+                    minio_client.remove_object(object_name)
                 except Exception as e:
                     logger.warning(f"从MinIO删除文件失败: {document_id}, 错误: {str(e)}")
                 

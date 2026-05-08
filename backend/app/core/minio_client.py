@@ -80,5 +80,14 @@ class MinioClient:
             logger.error(f"Error downloading object to file: {e}")
             raise
 
+    def remove_object(self, object_name: str, bucket_name: str = None):
+        try:
+            target_bucket = bucket_name or self.bucket_name
+            self.client.remove_object(target_bucket, object_name)
+            logger.info(f"Removed {object_name} from {target_bucket}")
+        except S3Error as e:
+            logger.error(f"Error removing object: {e}")
+            raise
+
 
 minio_client = MinioClient()

@@ -29,13 +29,11 @@ class KnowledgeService:
         self.file_upload_service = FileUploadService()
     
     async def build_knowledge_base(self, document_id: str) -> bool:
-        """
-        构建知识库 - 将文档转换为可搜索的知识（企业级流程）
-        """
+        """Build knowledge base — parse, vectorize, index to ES, then mark INDEXED."""
         try:
-            logger.info(f"🚀 开始构建企业级知识库，文档ID: {document_id}")
-            
-            # 1. 获取文档信息
+            logger.info(f"Building knowledge base for document: {document_id}")
+
+            # 1. Load document metadata
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
                     select(Document)
@@ -43,32 +41,23 @@ class KnowledgeService:
                     .where(Document.id == document_id)
                 )
                 document = result.scalar_one_or_none()
-                
                 if not document:
-                    logger.error(f"❌ 文档不存在: {document_id}")
+                    logger.error(f"Document not found: {document_id}")
                     return False
-                
-                # 更新状态为索引中
-                document.status = DocumentStatus.INDEXED  # type: ignore
-                document.indexed_at = datetime.now()  # type: ignore
-                await session.commit()
-            
-            # 2. 解析文档
+
+            # 2. Parse document into chunks
             chunks = await document_service.get_document_chunks(document_id)
             if not chunks:
-                logger.warning(f"⚠️ 文档没有分块内容: {document_id}")
+                logger.warning(f"Document has no chunks: {document_id}")
                 return False
-            
-            # 3. 批量向量化与索引
+
+            # 3. Batch vectorize and index to ES
             batch_size = 50
             for i in range(0, len(chunks), batch_size):
-                batch = chunks[i:i+batch_size]
+                batch = chunks[i:i + batch_size]
                 texts = [c.chunk_text for c in batch]
-                
-                # 获取向量
                 embeddings = await embedding_service.get_embeddings(texts)
-                
-                # 写入 Elasticsearch
+
                 for j, chunk in enumerate(batch):
                     es_doc = {
                         "content": chunk.chunk_text,
@@ -81,16 +70,23 @@ class KnowledgeService:
                             "document_id": document_id,
                             "chunk_id": chunk.id,
                             "page_number": chunk.page_number,
-                            "section_title": chunk.section_title
-                        }
+                            "section_title": chunk.section_title,
+                        },
                     }
                     await ElasticsearchTools.index_document(f"{document_id}_{chunk.id}", es_doc)
-            
-            logger.info(f"✅ 知识库构建完成，文档ID: {document_id}")
+
+            # 4. Mark as INDEXED only after ES indexing succeeds
+            async with AsyncSessionLocal() as session:
+                doc = await session.get(Document, document_id)
+                if doc:
+                    doc.status = DocumentStatus.INDEXED
+                    doc.indexed_at = datetime.now()
+                    await session.commit()
+
+            logger.info(f"Knowledge base built: {document_id}")
             return True
-            
         except Exception as e:
-            logger.error(f"❌ 构建知识库失败: {str(e)}")
+            logger.error(f"Knowledge base build failed: {e}")
             return False
     
     async def search_knowledge(

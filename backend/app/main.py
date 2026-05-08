@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 from app.core.minio_client import minio_client
 from app.core.config import settings
+from app.exceptions import AppError
 from app.core.database import init_db, AsyncSessionLocal
 from app.core.redis import init_redis
 from app.core.elasticsearch import init_elasticsearch, es_client
@@ -22,6 +23,7 @@ from app.core.logging import setup_logging
 from app.core.kafka_client import kafka_producer
 from app.core.middleware import PerformanceMiddleware, RateLimitMiddleware, metrics_collector
 from app.core.notification_ws import notification_ws_manager
+from app.core.tracing import setup_opentelemetry
 
 async def metrics_snapshot_task():
     """定期记录性能指标快照"""
@@ -38,58 +40,39 @@ async def metrics_snapshot_task():
 setup_logging()
 logger = logging.getLogger(__name__)
 
-# 全局服务实例
-auth_service = None
-chat_service = None
-file_service = None
-knowledge_service = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    logger.info("派聪明AI知识库系统启动中...")
-    
-    # 初始化服务
+    logger.info("DocMind AI知识库系统启动中...")
+
     try:
-        # 初始化数据库
         await init_db()
         logger.info("数据库连接成功")
-        
-        # 初始化Redis
+
         try:
             await init_redis()
         except Exception as e:
             logger.warning(f"Redis初始化失败: {e} - 应用将继续启动")
-        
-        # 初始化Elasticsearch
+
         try:
             await init_elasticsearch()
-            if es_client is not None:
+            if es_client:
                 logger.info("Elasticsearch连接成功")
         except Exception as e:
             logger.warning(f"Elasticsearch初始化失败: {e} - 应用将继续启动")
 
-        # 初始化Kafka
         try:
             await kafka_producer.start()
             logger.info("Kafka连接成功")
         except Exception as e:
             logger.warning(f"Kafka初始化失败: {e} - 应用将继续启动")
-        
-        # 初始化服务
-        global auth_service, chat_service, file_service, knowledge_service
-        from app.services.auth_service import auth_service
-        from app.services.chat_service import chat_service
-        from app.services.file_service import file_service
-        from app.services.knowledge_service import knowledge_service
+
         from app.services.permission_service import permission_service
-        
-        # 初始化默认权限和角色
         await permission_service.initialize_default_permissions_and_roles()
-        
+
         if settings.ENABLE_DEMO_ACCOUNT:
             from app.core.ensure_demo_user import ensure_demo_user
+            from app.services.auth_service import auth_service
             await ensure_demo_user()
 
             async with AsyncSessionLocal() as db:
@@ -146,6 +129,24 @@ app.add_middleware(PerformanceMiddleware)
 
 
 # 异常处理
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    """Domain exception handler — converts AppError subclasses to JSON."""
+    request_id = getattr(getattr(request, "state", None), "request_id", None)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "code": exc.status_code,
+            "error_code": exc.error_code,
+            "message": exc.message,
+            "detail": exc.detail,
+            "request_id": request_id,
+            "data": None,
+        },
+    )
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """HTTP异常处理：同时返回 message 和 detail，便于前端展示"""
@@ -287,6 +288,9 @@ async def prometheus_metrics():
 
     return http_metrics + "\n" + "\n".join(ws_lines) + "\n"
 
+
+# OpenTelemetry 链路追踪（通过 ENABLE_TRACING 环境变量启用）
+setup_opentelemetry(app)
 
 # 注册API路由
 app.include_router(api_router, prefix="/api/v1")

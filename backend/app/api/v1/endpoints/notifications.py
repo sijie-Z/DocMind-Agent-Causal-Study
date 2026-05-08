@@ -122,50 +122,37 @@ async def get_notifications(
             "limit": limit,
         }
     except Exception:
-        # 兼容历史数据库尚未新增 target_route/target_id 字段的场景
-        from sqlalchemy import text
-        where_sql = "WHERE user_id = :user_id"
-        params = {"user_id": current_user.id, "skip": skip, "limit": limit}
+        # Fallback for legacy DB without target_route/target_id columns
+        base_query = select(Notification.id, Notification.title, Notification.content,
+                            Notification.type, Notification.is_read, Notification.created_at
+                            ).where(Notification.user_id == current_user.id)
         if unread_only:
-            where_sql += " AND is_read = 0"
+            base_query = base_query.where(Notification.is_read == False)
         if type:
-            where_sql += " AND type = :type"
-            params["type"] = type
+            base_query = base_query.where(Notification.type == type)
         if q:
-            where_sql += " AND (title LIKE :kw OR content LIKE :kw)"
-            params["kw"] = f"%{q}%"
-
-        total_sql = text(f"SELECT COUNT(1) AS c FROM notifications {where_sql}")
-        total_result = await db.execute(total_sql, params)
-        total = int(total_result.scalar() or 0)
-
-        unread_sql = text("SELECT COUNT(1) AS c FROM notifications WHERE user_id = :user_id AND is_read = 0")
-        unread_result = await db.execute(unread_sql, {"user_id": current_user.id})
-        unread_count = int(unread_result.scalar() or 0)
-
-        list_sql = text(
-            f"SELECT id, title, content, type, is_read, created_at FROM notifications {where_sql} "
-            "ORDER BY created_at DESC LIMIT :limit OFFSET :skip"
-        )
-        rows = (await db.execute(list_sql, params)).mappings().all()
-
+            keyword = f"%{q}%"
+            base_query = base_query.where(
+                (Notification.title.like(keyword)) | (Notification.content.like(keyword))
+            )
+        count_query = select(func.count()).select_from(base_query.subquery())
+        total = int((await db.execute(count_query)).scalar() or 0)
+        unread_count = int((await db.execute(
+            select(func.count(Notification.id)).where(
+                Notification.user_id == current_user.id, Notification.is_read == False
+            )
+        )).scalar() or 0)
+        rows = (await db.execute(
+            base_query.order_by(desc(Notification.created_at)).offset(skip).limit(limit)
+        )).all()
         items = [{
-            "id": int(r["id"]),
-            "title": r["title"],
-            "content": r["content"],
-            "type": r["type"],
-            "is_read": bool(r["is_read"]),
-            "target_route": None,
-            "target_id": None,
-            "created_at": r["created_at"],
+            "id": int(r[0]), "title": r[1], "content": r[2], "type": r[3],
+            "is_read": bool(r[4]), "target_route": None, "target_id": None,
+            "created_at": r[5],
         } for r in rows]
-
         return {
-            "items": items,
-            "total": total,
-            "unread_count": unread_count,
-            "skip": skip,
-            "limit": limit,
+            "items": items, "total": total, "unread_count": unread_count,
+            "skip": skip, "limit": limit,
         }
 
 @router.get("/unread-count", response_model=dict, summary="获取未读通知数量")

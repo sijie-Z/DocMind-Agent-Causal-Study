@@ -8,7 +8,9 @@
     <n-dialog-provider>
       <n-notification-provider>
         <n-message-provider>
-          <router-view />
+          <ErrorBoundary>
+            <router-view />
+          </ErrorBoundary>
         </n-message-provider>
       </n-notification-provider>
     </n-dialog-provider>
@@ -21,6 +23,7 @@ import { darkTheme, zhCN, dateZhCN, enUS, dateEnUS } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { lightThemeOverrides, darkThemeOverrides } from '@/theme'
+import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 
 const appStore = useAppStore()
 const { locale } = useI18n()

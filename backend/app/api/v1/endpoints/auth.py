@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, field_validator
@@ -17,6 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.redis import RedisTools
+from app.exceptions import (
+    AccountLockedError, AppError, AuthenticationError, ConflictError,
+    NotFoundError, RateLimitError, ValidationError,
+)
 from app.models.user import User
 from app.models.user_audit import UserLoginSession, UserActivityLog
 from app.services.auth_service import auth_service
@@ -29,6 +33,62 @@ router = APIRouter()
 
 # OAuth2配置
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+# --- Brute force protection ---
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCKOUT_SECONDS = 300  # 5 minutes
+
+async def _check_login_lockout(request: Request) -> None:
+    """Check if the IP is locked out due to too many failed login attempts."""
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    if not client_ip:
+        return
+    try:
+        from app.core.redis import redis_client
+        if redis_client:
+            key = f"login_fail:{client_ip}"
+            attempts = await redis_client.get(key)
+            if attempts and int(attempts) >= LOGIN_MAX_ATTEMPTS:
+                ttl = await redis_client.ttl(key)
+                raise RateLimitError(f"登录尝试次数过多，请 {ttl} 秒后重试")
+    except RateLimitError:
+        raise
+    except Exception:
+        pass  # Redis down, allow login
+
+async def _record_login_failure(request: Request) -> None:
+    """Record a failed login attempt for the given IP."""
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    if not client_ip:
+        return
+    try:
+        from app.core.redis import redis_client
+        if redis_client:
+            key = f"login_fail:{client_ip}"
+            pipe = redis_client.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, LOGIN_LOCKOUT_SECONDS)
+            await pipe.execute()
+    except Exception:
+        pass
+
+async def _clear_login_failures(request: Request) -> None:
+    """Clear failed login attempts on successful login."""
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    if not client_ip:
+        return
+    try:
+        from app.core.redis import redis_client
+        if redis_client:
+            await redis_client.delete(f"login_fail:{client_ip}")
+    except Exception:
+        pass
 
 # 请求模型
 class LoginRequest(BaseModel):
@@ -85,21 +145,10 @@ class UserInfoResponse(BaseModel):
 async def ensure_demo():
     """创建或重置演示账号（仅开发模式开启）"""
     if not settings.ENABLE_ENSURE_DEMO_ENDPOINT:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not Found"
-        )
-    try:
-        from app.core.ensure_demo_user import ensure_demo_user
-        await ensure_demo_user()
-        return {"success": True, "message": "演示账号已就绪", "data": {"username": "admin", "password": "123456"}}
-    except Exception as e:
-        import traceback
-        logger.exception("ensure-demo 失败")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"ensure-demo 失败: {type(e).__name__}: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "ensure-demo 失败",
-        )
+        raise NotFoundError()
+    from app.core.ensure_demo_user import ensure_demo_user
+    await ensure_demo_user()
+    return {"success": True, "message": "演示账号已就绪", "data": {"username": "admin", "password": "123456"}}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -108,20 +157,19 @@ async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
-    """用户登录"""
+    """用户登录 (form-data)"""
+    await _check_login_lockout(request)
     try:
-        logger.info(f"Login attempt - username: {form_data.username!r}, len(password): {len(form_data.password or '')}")
-        # 1. 验证用户凭据
+        logger.info(f"Login attempt - username: {form_data.username!r}, ip: {request.client.host if request.client else 'unknown'}")
         user = await auth_service.authenticate_user(
             db, form_data.username, form_data.password
         )
-        
+
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户名或密码错误",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            await _record_login_failure(request)
+            raise AuthenticationError("用户名或密码错误")
+
+        await _clear_login_failures(request)
         
         logger.info("Authentication successful. Proceeding to token generation.")
         # 2. 生成访问令牌
@@ -168,7 +216,7 @@ async def login(
 
         try:
             from app.core.redis import redis_client
-            if redis_client is not None:
+            if redis_client:
                 logger.info(f"Attempting to cache user info in Redis for user ID: {user.id}")
                 await redis_client.setex(
                     f"user:{user.id}",
@@ -219,36 +267,31 @@ async def login(
             }
         }
         
-    except HTTPException:
+    except (AuthenticationError, RateLimitError):
         raise
     except Exception as e:
         logger.exception("登录过程异常")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else "登录失败",
-        )
+        raise AppError("登录失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
 
 from app.models.notification import Notification
 
 
 @router.post("/login/json", response_model=TokenResponse)
 async def login_json(
+    request: Request,
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    使用 JSON 体的登录接口（与 /login 逻辑一致，用于排查 Form 与 JSON 差异）。
-    请求体: {"username": "admin", "password": "123456"}
-    """
+    """Login with JSON body."""
+    await _check_login_lockout(request)
     try:
-        logger.info(f"Login (JSON) attempt - username: {body.username!r}, len(password): {len(body.password or '')}")
+        logger.info(f"Login (JSON) attempt - username: {body.username!r}")
         user = await auth_service.authenticate_user(db, body.username, body.password)
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户名或密码错误",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            await _record_login_failure(request)
+            raise AuthenticationError("用户名或密码错误")
+
+        await _clear_login_failures(request)
         access_token = auth_service.create_access_token(
             data={
                 "sub": user.username,
@@ -276,7 +319,7 @@ async def login_json(
             user_json_str = json.dumps(user_info)
         try:
             from app.core.redis import redis_client
-            if redis_client is not None:
+            if redis_client:
                 await redis_client.setex(
                     f"user:{user.id}",
                     settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -295,14 +338,11 @@ async def login_json(
                 "user_info": user_info,
             },
         }
-    except HTTPException:
+    except (AuthenticationError, RateLimitError):
         raise
     except Exception as e:
         logger.exception("login_json 异常")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else "登录失败"
-        )
+        raise AppError("登录失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -318,10 +358,7 @@ async def register(
         )
         
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="用户名已存在"
-            )
+            raise ConflictError("用户名已存在")
         
         # 检查邮箱是否已存在
         existing_email = await auth_service.get_user_by_email(
@@ -329,10 +366,7 @@ async def register(
         )
         
         if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="邮箱已被使用"
-            )
+            raise ConflictError("邮箱已被使用")
         
         # 创建新用户
         user = await auth_service.create_user(
@@ -395,13 +429,10 @@ async def register(
             }
         }
         
-    except HTTPException:
+    except ConflictError:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"注册失败: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "注册失败"
-        )
+        raise AppError("注册失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
@@ -414,10 +445,7 @@ async def refresh_token(
         payload = auth_service.verify_token(body.refresh_token)
         
         if not payload or payload.get("type") != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="无效的刷新令牌"
-            )
+            raise AuthenticationError("无效的刷新令牌")
         
         username = payload.get("sub")
         user_id = payload.get("user_id")
@@ -426,10 +454,7 @@ async def refresh_token(
         user = await auth_service.get_user_by_id(db, user_id)  # pyright: ignore[reportArgumentType]
         
         if not user or user.username != username:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户不存在"
-            )
+            raise AuthenticationError("用户不存在")
         
         # 生成新的访问令牌
         new_access_token = auth_service.create_access_token(
@@ -455,30 +480,18 @@ async def refresh_token(
             }
         }
 
-    except HTTPException:
+    except AuthenticationError:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"刷新令牌失败: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "刷新令牌失败"
-        )
+        raise AppError("刷新令牌失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
 
 @router.post("/logout")
 async def logout(
     token: str = Depends(oauth2_scheme)
 ):
     """用户登出"""
-    try:
-        # 将令牌加入黑名单
-        await auth_service.blacklist_token(token)
-        
-        return {"message": "登出成功"}
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"登出失败: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "登出失败"
-        )
+    await auth_service.blacklist_token(token)
+    return {"message": "登出成功"}
 
 class UserInfoWrapper(BaseModel):
     success: bool = True
@@ -537,10 +550,7 @@ async def update_current_user(
         return UserInfoWrapper(data=user_info)
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"更新用户信息失败: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "更新用户信息失败"
-        )
+        raise AppError("更新用户信息失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
 
 @router.post("/change-password")
 async def change_password(
@@ -553,10 +563,7 @@ async def change_password(
     try:
         # 验证旧密码
         if not auth_service.verify_password(old_password, current_user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="旧密码错误"
-            )
+            raise ValidationError("旧密码错误")
         
         # 更新密码
         await auth_service.update_user_password(
@@ -566,12 +573,9 @@ async def change_password(
         )
         
         return {"message": "密码修改成功"}
-        
-    except HTTPException:
+
+    except ValidationError:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"修改密码失败: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "修改密码失败"
-        )
+        raise AppError("修改密码失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
         

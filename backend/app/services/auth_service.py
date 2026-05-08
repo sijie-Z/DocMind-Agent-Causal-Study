@@ -3,7 +3,8 @@
 派聪明AI知识库系统 - 认证服务
 """
 
-import json # 确保有这个
+import json
+import uuid
 import jwt
 import bcrypt
 import logging
@@ -37,40 +38,34 @@ class AuthService:
         self.refresh_token_expire_minutes = settings.REFRESH_TOKEN_EXPIRE_MINUTES
     
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
-        """创建访问令牌"""
+        """Create access token with jti for precise revocation."""
         to_encode = data.copy()
-        
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
             expire = datetime.now(timezone.utc) + timedelta(minutes=self.access_token_expire_minutes)
-        
         to_encode.update({
             "exp": expire,
             "type": "access",
-            "iat": datetime.now(timezone.utc)
+            "iat": datetime.now(timezone.utc),
+            "jti": uuid.uuid4().hex,
         })
-        
-        encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
-        return encoded_jwt
-    
+        return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+
     def create_refresh_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
-        """创建刷新令牌"""
+        """Create refresh token with jti for precise revocation."""
         to_encode = data.copy()
-        
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
             expire = datetime.now(timezone.utc) + timedelta(minutes=self.refresh_token_expire_minutes)
-        
         to_encode.update({
             "exp": expire,
             "type": "refresh",
-            "iat": datetime.now(timezone.utc)
+            "iat": datetime.now(timezone.utc),
+            "jti": uuid.uuid4().hex,
         })
-        
-        encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
-        return encoded_jwt
+        return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
     
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
         """验证令牌"""
@@ -275,35 +270,34 @@ class AuthService:
             raise
     
     async def blacklist_token(self, token: str):
-        """将令牌加入黑名单"""
+        """Blacklist a token using its jti (JWT ID) for precise revocation."""
         try:
-            # 解析令牌获取过期时间
             payload = self.verify_token(token)
-            
             if payload and "exp" in payload:
                 exp_timestamp = payload["exp"]
                 current_timestamp = datetime.now(timezone.utc).timestamp()
-                
-                # 计算剩余有效期
                 if exp_timestamp > current_timestamp:
                     ttl = int(exp_timestamp - current_timestamp)
-                    
-                    # 将令牌加入黑名单
-                    blacklist_key = f"blacklist:{token}"
+                    jti = payload.get("jti")
+                    if jti:
+                        blacklist_key = f"blacklist:jti:{jti}"
+                    else:
+                        blacklist_key = f"blacklist:{hash(token)}"
                     await RedisTools.set_cache(blacklist_key, "1", expire=ttl)
-                    
-                    logger.info(f"令牌已加入黑名单，有效期: {ttl}秒")
-                    
+                    logger.info(f"Token blacklisted (jti={jti}), ttl={ttl}s")
         except Exception as e:
-            logger.error(f"令牌黑名单处理失败: {str(e)}")
-    
+            logger.error(f"Token blacklist failed: {e}")
+
     async def is_token_blacklisted(self, token: str) -> bool:
-        """检查令牌是否在黑名单中"""
+        """Check if a token is blacklisted by its jti."""
         try:
-            blacklist_key = f"blacklist:{token}"
-            return await RedisTools.exists(blacklist_key)
-        except Exception as e:
-            logger.error(f"检查令牌黑名单失败: {str(e)}")
+            payload = self.verify_token(token)
+            if payload:
+                jti = payload.get("jti")
+                if jti:
+                    return await RedisTools.exists(f"blacklist:jti:{jti}")
+            return False
+        except Exception:
             return False
     
     async def get_user_by_username(self, db: AsyncSession, username: str) -> Optional[User]:
