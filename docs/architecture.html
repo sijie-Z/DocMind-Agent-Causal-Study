@@ -275,6 +275,9 @@ div[data-lang="en"] { display: none; }
   font-weight: 400;
   margin-left: 8px;
 }
+body.lang-en .section-header .en { display: none; }
+body.lang-en .section-header .zh-inline { display: none; }
+.section-header .zh-inline { font-size: 0.8rem; color: var(--text-dim); font-weight: 400; margin-left: 8px; }
 
 .section-desc {
   color: var(--text-muted);
@@ -1260,27 +1263,27 @@ div[data-lang="en"] { display: none; }
       <div class="hero-stats animate-in delay-2">
         <div class="stat-card">
           <div class="number">25K+</div>
-          <div class="label">Lines of Code</div>
+          <div class="label"><span data-lang="zh">代码行数</span><span data-lang="en">Lines of Code</span></div>
         </div>
         <div class="stat-card">
-          <div class="number">14</div>
-          <div class="label">API Endpoints</div>
+          <div class="number">15</div>
+          <div class="label"><span data-lang="zh">API 模块</span><span data-lang="en">API Modules</span></div>
         </div>
         <div class="stat-card">
           <div class="number">12</div>
-          <div class="label">Models</div>
+          <div class="label"><span data-lang="zh">数据模型</span><span data-lang="en">Data Models</span></div>
         </div>
         <div class="stat-card">
           <div class="number">11</div>
-          <div class="label">Agent Tools</div>
+          <div class="label"><span data-lang="zh">Agent 工具</span><span data-lang="en">Agent Tools</span></div>
         </div>
         <div class="stat-card">
           <div class="number">311</div>
-          <div class="label">Total Tests</div>
+          <div class="label"><span data-lang="zh">自动化测试</span><span data-lang="en">Total Tests</span></div>
         </div>
         <div class="stat-card">
-          <div class="number">98%</div>
-          <div class="label">Refactor Complete</div>
+          <div class="number">12</div>
+          <div class="label"><span data-lang="zh">优化轮次</span><span data-lang="en">Optimization Rounds</span></div>
         </div>
       </div>
 
@@ -1311,11 +1314,11 @@ div[data-lang="en"] { display: none; }
     <section id="architecture" class="section">
       <div class="section-header">
         <div class="section-icon glow-purple" style="background:var(--purple-dim); color:var(--purple);">A</div>
-        <h2>System Architecture <span class="en">系统架构</span></h2>
+        <h2><span data-lang="zh">系统架构</span><span data-lang="en">System Architecture</span></h2>
       </div>
       <p class="section-desc">
-        Multi-layered architecture with clear separation of concerns: Presentation Layer (Vue 3) -> API Layer (FastAPI) -> Business Layer (Services) -> Data Layer (Models + Infrastructure).
-        <br>多层架构，关注点分离：表现层 -> API 层 -> 业务层 -> 数据层。
+        <span data-lang="zh">多层架构，关注点分离：表现层（Vue 3）→ API 层（FastAPI）→ 业务层（Services）→ 数据层（Models + Infrastructure）。</span>
+        <span data-lang="en">Multi-layered architecture with clear separation of concerns: Presentation Layer (Vue 3) -> API Layer (FastAPI) -> Business Layer (Services) -> Data Layer (Models + Infrastructure).</span>
       </p>
 
       <div class="arch-diagram">
@@ -1410,11 +1413,11 @@ div[data-lang="en"] { display: none; }
     <section id="backend" class="section">
       <div class="section-header">
         <div class="section-icon glow-green" style="background:var(--green-dim); color:var(--green);">P</div>
-        <h2>Backend Modules <span class="en">后端模块</span></h2>
+        <h2><span data-lang="zh">后端模块</span><span data-lang="en">Backend Modules</span></h2>
       </div>
       <p class="section-desc">
-        Python (FastAPI) backend following the Router -> Service -> Model pattern. 14 API endpoints, 14 business services, 12 SQLAlchemy models.
-        <br>Python 后端遵循 Router -> Service -> Model 模式，14 个 API 端点、14 个业务服务、12 个数据模型。
+        <span data-lang="zh">Python（FastAPI）后端遵循 Router → Service → Model 模式，15 个 API 端点、17 个业务服务、12 个数据模型。</span>
+        <span data-lang="en">Python (FastAPI) backend following the Router -> Service -> Model pattern. 15 API endpoints, 17 business services, 12 SQLAlchemy models.</span>
       </p>
 
       <div class="module-grid">
@@ -1579,11 +1582,11 @@ div[data-lang="en"] { display: none; }
     <section id="frontend" class="section">
       <div class="section-header">
         <div class="section-icon glow-blue" style="background:var(--blue-dim); color:var(--blue);">V</div>
-        <h2>Frontend Modules <span class="en">前端模块</span></h2>
+        <h2><span data-lang="zh">前端模块</span><span data-lang="en">Frontend Modules</span></h2>
       </div>
       <p class="section-desc">
-        Vue 3 + TypeScript + Naive UI frontend with 20+ views, Pinia state management, composables, and real-time streaming support.
-        <br>Vue 3 前端，20+ 页面组件，Pinia 状态管理，组合式函数，实时流式传输支持。
+        <span data-lang="zh">Vue 3 + TypeScript + Naive UI 前端，20+ 页面组件，Pinia 状态管理，组合式函数，实时流式传输支持。</span>
+        <span data-lang="en">Vue 3 + TypeScript + Naive UI frontend with 20+ views, Pinia state management, composables, and real-time streaming support.</span>
       </p>
 
       <div class="module-grid">
@@ -1697,11 +1700,11 @@ div[data-lang="en"] { display: none; }
     <section id="rag-pipeline" class="section">
       <div class="section-header">
         <div class="section-icon glow-purple" style="background:var(--purple-dim); color:var(--purple);">R</div>
-        <h2>RAG Pipeline <span class="en">检索增强生成流水线</span></h2>
+        <h2><span data-lang="zh">RAG 检索增强生成流水线</span><span data-lang="en">RAG Pipeline</span></h2>
       </div>
       <p class="section-desc">
-        Intelligent query processing with complexity classification, adaptive strategy selection, hybrid search (BM25 + Vector), RRF fusion, reranking, and context compression.
-        <br>智能查询处理：复杂度分类、自适应策略选择、混合搜索、RRF 融合、重排序、上下文压缩。
+        <span data-lang="zh">智能查询处理：复杂度分类、自适应策略选择、混合搜索（BM25 + 向量）、RRF 融合、重排序、上下文压缩。</span>
+        <span data-lang="en">Intelligent query processing with complexity classification, adaptive strategy selection, hybrid search (BM25 + Vector), RRF fusion, reranking, and context compression.</span>
       </p>
 
       <div class="flow-container">
@@ -1815,11 +1818,11 @@ div[data-lang="en"] { display: none; }
     <section id="agent-system" class="section">
       <div class="section-header">
         <div class="section-icon glow-cyan" style="background:var(--cyan-dim); color:var(--cyan);">G</div>
-        <h2>Agent System <span class="en">智能体系统</span></h2>
+        <h2><span data-lang="zh">Agent 智能体系统</span><span data-lang="en">Agent System</span></h2>
       </div>
       <p class="section-desc">
-        ReAct-style autonomous agent with self-registering tool registry, parallel execution, context compression, skill learning, and subagent delegation.
-        <br>ReAct 风格自主智能体，自注册工具注册表、并行执行、上下文压缩、技能学习、子智能体委托。
+        <span data-lang="zh">ReAct 风格自主智能体，自注册工具注册表、并行执行、上下文压缩、技能学习、子智能体委托。</span>
+        <span data-lang="en">ReAct-style autonomous agent with self-registering tool registry, parallel execution, context compression, skill learning, and subagent delegation.</span>
       </p>
 
       <div class="agent-diagram">
@@ -1933,11 +1936,11 @@ div[data-lang="en"] { display: none; }
     <section id="dataflow" class="section">
       <div class="section-header">
         <div class="section-icon glow-orange" style="background:var(--orange-dim); color:var(--orange);">D</div>
-        <h2>Data Flow <span class="en">数据流转</span></h2>
+        <h2><span data-lang="zh">数据流转</span><span data-lang="en">Data Flow</span></h2>
       </div>
       <p class="section-desc">
-        End-to-end data flow from document upload through processing pipeline to intelligent query response.
-        <br>端到端数据流转：从文档上传到处理流水线再到智能查询响应。
+        <span data-lang="zh">端到端数据流转：从文档上传到处理流水线再到智能查询响应。</span>
+        <span data-lang="en">End-to-end data flow from document upload through processing pipeline to intelligent query response.</span>
       </p>
 
       <!-- Upload Flow -->
@@ -1989,11 +1992,11 @@ div[data-lang="en"] { display: none; }
     <section id="infrastructure" class="section">
       <div class="section-header">
         <div class="section-icon glow-orange" style="background:var(--orange-dim); color:var(--orange);">I</div>
-        <h2>Infrastructure <span class="en">基础设施</span></h2>
+        <h2><span data-lang="zh">基础设施</span><span data-lang="en">Infrastructure</span></h2>
       </div>
       <p class="section-desc">
-        Production-grade infrastructure with caching, messaging, search, storage, and observability.
-        <br>生产级基础设施：缓存、消息队列、搜索引擎、对象存储、可观测性。
+        <span data-lang="zh">生产级基础设施：缓存、消息队列、搜索引擎、对象存储、可观测性。</span>
+        <span data-lang="en">Production-grade infrastructure with caching, messaging, search, storage, and observability.</span>
       </p>
 
       <div class="infra-grid">
@@ -2048,11 +2051,11 @@ div[data-lang="en"] { display: none; }
     <section id="security" class="section">
       <div class="section-header">
         <div class="section-icon glow-red" style="background:var(--red-dim); color:var(--red);">S</div>
-        <h2>Security Layers <span class="en">安全防护层</span></h2>
+        <h2><span data-lang="zh">安全防护层</span><span data-lang="en">Security Layers</span></h2>
       </div>
       <p class="section-desc">
-        Defense-in-depth security architecture with authentication, authorization, input validation, and infrastructure hardening.
-        <br>纵深防御安全架构：认证、授权、输入验证、基础设施加固。
+        <span data-lang="zh">纵深防御安全架构：认证、授权、输入验证、基础设施加固。</span>
+        <span data-lang="en">Defense-in-depth security architecture with authentication, authorization, input validation, and infrastructure hardening.</span>
       </p>
 
       <div class="security-layers">
@@ -2132,40 +2135,40 @@ div[data-lang="en"] { display: none; }
     <section id="testing" class="section">
       <div class="section-header">
         <div class="section-icon glow-green" style="background:var(--green-dim); color:var(--green);">T</div>
-        <h2>Testing & Quality <span class="en">测试与质量</span></h2>
+        <h2><span data-lang="zh">测试与质量</span><span data-lang="en">Testing & Quality</span></h2>
       </div>
       <p class="section-desc">
-        Comprehensive test coverage with 311 total tests, 9 optimization rounds, and production-grade monitoring.
-        <br>全面测试覆盖，311 个测试用例，9 轮优化迭代，生产级监控。
+        <span data-lang="zh">全面测试覆盖，311 个测试用例，12 轮优化迭代，生产级监控。</span>
+        <span data-lang="en">Comprehensive test coverage with 311 total tests, 12 optimization rounds, and production-grade monitoring.</span>
       </p>
 
       <div class="test-grid">
         <div class="test-card">
           <div class="test-number" style="color:var(--green);">216</div>
-          <div class="test-label">Backend Tests</div>
+          <div class="test-label"><span data-lang="zh">后端测试</span><span data-lang="en">Backend Tests</span></div>
           <div class="test-bar">
             <div class="test-bar-fill" style="width:69%; background:var(--green);"></div>
           </div>
         </div>
         <div class="test-card">
           <div class="test-number" style="color:var(--blue);">95</div>
-          <div class="test-label">Frontend Tests</div>
+          <div class="test-label"><span data-lang="zh">前端测试</span><span data-lang="en">Frontend Tests</span></div>
           <div class="test-bar">
             <div class="test-bar-fill" style="width:31%; background:var(--blue);"></div>
           </div>
         </div>
         <div class="test-card">
-          <div class="test-number" style="color:var(--purple);">9</div>
-          <div class="test-label">Optimization Rounds</div>
+          <div class="test-number" style="color:var(--purple);">12</div>
+          <div class="test-label"><span data-lang="zh">优化轮次</span><span data-lang="en">Optimization Rounds</span></div>
           <div class="test-bar">
             <div class="test-bar-fill" style="width:90%; background:var(--purple);"></div>
           </div>
         </div>
         <div class="test-card">
-          <div class="test-number" style="color:var(--orange);">98%</div>
-          <div class="test-label">Refactor Complete</div>
+          <div class="test-number" style="color:var(--orange);">100%</div>
+          <div class="test-label"><span data-lang="zh">重构完成</span><span data-lang="en">Refactor Complete</span></div>
           <div class="test-bar">
-            <div class="test-bar-fill" style="width:98%; background:var(--orange);"></div>
+            <div class="test-bar-fill" style="width:100%; background:var(--orange);"></div>
           </div>
         </div>
       </div>
@@ -2175,22 +2178,22 @@ div[data-lang="en"] { display: none; }
         <div class="infra-card">
           <div class="infra-icon" style="color:var(--pink); background:var(--pink-dim);">M</div>
           <div class="infra-info">
-            <h4>17+ RAG Metrics</h4>
-            <p>Prometheus metrics covering latency, throughput, cache hit rate, retrieval quality, reranker scores, and generation metrics.</p>
+            <h4><span data-lang="zh">17+ RAG 指标</span><span data-lang="en">17+ RAG Metrics</span></h4>
+            <p><span data-lang="zh">Prometheus 指标覆盖延迟、吞吐量、缓存命中率、检索质量、重排序分数和生成指标。</span><span data-lang="en">Prometheus metrics covering latency, throughput, cache hit rate, retrieval quality, reranker scores, and generation metrics.</span></p>
           </div>
         </div>
         <div class="infra-card">
           <div class="infra-icon" style="color:var(--cyan); background:var(--cyan-dim);">G</div>
           <div class="infra-info">
-            <h4>18 Grafana Panels</h4>
-            <p>Comprehensive dashboards for system health, RAG pipeline performance, API latency distribution, and error rate tracking.</p>
+            <h4><span data-lang="zh">18 个 Grafana 面板</span><span data-lang="en">18 Grafana Panels</span></h4>
+            <p><span data-lang="zh">全面的仪表盘：系统健康、RAG 管线性能、API 延迟分布和错误率追踪。</span><span data-lang="en">Comprehensive dashboards for system health, RAG pipeline performance, API latency distribution, and error rate tracking.</span></p>
           </div>
         </div>
         <div class="infra-card">
           <div class="infra-icon" style="color:var(--green); background:var(--green-dim);">R</div>
           <div class="infra-info">
-            <h4>52/53 Refactor Tasks</h4>
-            <p>Systematic code quality improvements: service extraction, error handling, type safety, performance optimization, and documentation.</p>
+            <h4><span data-lang="zh">52/53 重构任务</span><span data-lang="en">52/53 Refactor Tasks</span></h4>
+            <p><span data-lang="zh">系统化代码质量改进：服务提取、异常处理、类型安全、性能优化和文档完善。</span><span data-lang="en">Systematic code quality improvements: service extraction, error handling, type safety, performance optimization, and documentation.</span></p>
           </div>
         </div>
       </div>
@@ -2200,11 +2203,10 @@ div[data-lang="en"] { display: none; }
 
   <!-- Footer -->
   <footer class="footer">
-    <div>DocMind Architecture Visualization &copy; 2026</div>
+    <div><span data-lang="zh">DocMind 架构可视化</span><span data-lang="en">DocMind Architecture Visualization</span> &copy; 2026</div>
     <div>
-      Built with care |
-      <a href="#">GitHub</a> |
-      <a href="#">Documentation</a>
+      <span data-lang="zh">用心构建</span><span data-lang="en">Built with care</span> |
+      <a href="https://github.com/sijie-Z/DocMind-RAG">GitHub</a>
     </div>
   </footer>
 
