@@ -85,3 +85,17 @@ class ChatStreamChunk(BaseModel):
     type: str = Field(..., description="数据类型：chunk, end, error")
     content: str = Field(..., description="内容")
     timestamp: float = Field(..., description="时间戳")
+
+
+class ChatStreamRequest(BaseModel):
+    """SSE 流式聊天请求"""
+    content: str = Field(..., min_length=1, description="用户消息")
+    conversationId: Optional[str] = Field(None, description="会话 ID")
+    fileIds: Optional[list[str]] = Field(None, description="关联文件 ID 列表")
+    payload: Optional[dict] = Field(None, description="额外参数（strict/privacy/sse/stream 等布尔开关）")
+
+
+class FeedbackRequest(BaseModel):
+    """消息反馈请求"""
+    feedback: int = Field(..., ge=-1, le=1, description="反馈值：1=点赞, 0=取消, -1=点踩")
+    note: Optional[str] = Field(None, max_length=500, description="反馈备注")

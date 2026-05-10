@@ -6,7 +6,7 @@ import asyncio
 import json
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
@@ -20,6 +20,7 @@ from app.schemas.workflow import (
     WorkflowExecuteRequest, ExecutionResponse, NodeDefinitionResponse
 )
 from app.services.workflow_engine import WorkflowEngine, WorkflowConfig
+from app.exceptions import NotFoundError, ValidationError, AppError
 
 router = APIRouter()
 
@@ -100,7 +101,7 @@ async def get_workflow(
     workflow = result.scalar_one_or_none()
 
     if not workflow:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+        raise NotFoundError(detail="工作流不存在")
 
     return {
         "success": True,
@@ -128,7 +129,7 @@ async def update_workflow(
     workflow = result.scalar_one_or_none()
 
     if not workflow:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+        raise NotFoundError(detail="工作流不存在")
 
     update_data = workflow_in.model_dump(exclude_unset=True)
     if "flow_data" in update_data and update_data["flow_data"]:
@@ -153,7 +154,7 @@ async def update_workflow(
     }
 
 
-@router.delete("/{workflow_id}")
+@router.delete("/{workflow_id}", response_model=dict)
 async def delete_workflow(
     workflow_id: int,
     current_user: User = Depends(get_current_user),
@@ -164,7 +165,7 @@ async def delete_workflow(
     workflow = result.scalar_one_or_none()
 
     if not workflow:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+        raise NotFoundError(detail="工作流不存在")
 
     workflow.is_active = False
     await db.commit()
@@ -186,10 +187,10 @@ async def execute_workflow(
     workflow = result.scalar_one_or_none()
 
     if not workflow:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+        raise NotFoundError(detail="工作流不存在")
 
     if not workflow.flow_data:
-        raise HTTPException(status_code=400, detail="工作流配置为空")
+        raise ValidationError(detail="工作流配置为空")
 
     # 从请求体获取输入数据
     input_data = body if body else {}
@@ -335,7 +336,7 @@ async def execute_workflow(
             execution.completed_at = datetime.now()
             await db.commit()
 
-            raise HTTPException(status_code=500, detail=str(e))
+            raise AppError(detail=str(e))
 
 
 @router.get("/executions/{execution_id}", response_model=Dict[str, Any])
@@ -349,7 +350,7 @@ async def get_execution(
     execution = result.scalar_one_or_none()
 
     if not execution:
-        raise HTTPException(status_code=404, detail="执行记录不存在")
+        raise NotFoundError(detail="执行记录不存在")
 
     return {
         "success": True,

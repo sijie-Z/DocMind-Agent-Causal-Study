@@ -256,19 +256,25 @@ DocMind/
 │   │   ├── rag/                     # RAG 管线（pipeline, retriever, reranker, cache, metrics）
 │   │   ├── schemas/                 # Pydantic 请求/响应模型
 │   │   └── services/                # 业务服务层（17 个服务模块）
-│   ├── tests/                       # pytest 测试（160 个用例）
-│   │   ├── test_auth_service.py     # JWT / 密码哈希 / Token 黑名单 / RBAC
-│   │   ├── test_masking_service.py  # PII 脱敏（手机/邮箱/身份证/IP）
-│   │   ├── test_circuit_breaker.py  # 熔断器状态机
-│   │   ├── test_semantic_cache.py   # 语义缓存余弦相似度
-│   │   ├── test_rag_service.py      # RRF 融合 / 查询意图 / 上下文压缩
-│   │   ├── test_rag_cache.py        # 精确缓存 + 语义缓存序列化/量化
-│   │   ├── test_rag_metrics.py      # 指标快照 / 百分位数 / 窗口过滤
-│   │   ├── test_exceptions.py       # 异常层级 / 状态码映射 / 错误码
-│   │   ├── test_config.py           # 配置校验（弱密钥拒绝）
-│   │   ├── test_document_parser.py  # 文档解析
-│   │   ├── test_auth_api.py         # API 端点集成测试
-│   │   └── test_memory_service.py   # 记忆系统（52 个用例）
+│   ├── tests/                       # pytest 测试（206 个用例）
+│   │   ├── unit/                    # 纯逻辑单测
+│   │   │   ├── test_circuit_breaker.py
+│   │   │   ├── test_config.py
+│   │   │   ├── test_context_window.py
+│   │   │   ├── test_exceptions.py
+│   │   │   ├── test_masking_service.py
+│   │   │   ├── test_prometheus_metrics.py
+│   │   │   ├── test_rag_cache.py
+│   │   │   ├── test_rag_evaluator.py
+│   │   │   ├── test_rag_metrics.py
+│   │   │   ├── test_rag_service.py
+│   │   │   └── test_semantic_cache.py
+│   │   ├── integration/             # 集成测试
+│   │   │   ├── test_auth_api.py
+│   │   │   ├── test_auth_service.py
+│   │   │   ├── test_document_parser.py
+│   │   │   ├── test_health.py
+│   │   │   └── test_memory_service.py
 │   ├── lib/rag/                     # RAG 工具库（chunk, vectorizer, retriever, hybrid, BM25）
 │   ├── worker/                      # 独立 Kafka 消费者（文档处理 Worker）
 │   ├── config/                      # Prometheus + Grafana 监控配置
@@ -296,7 +302,7 @@ DocMind/
 │   │   ├── api/                     # 15 个 API 模块封装
 │   │   ├── stores/                  # Pinia 状态管理
 │   │   ├── utils/
-│   │   │   ├── __tests__/           # Vitest 测试（91 个用例）
+│   │   │   ├── __tests__/           # Vitest 测试（100 个用例）
 │   │   │   │   ├── auth.test.ts
 │   │   │   │   ├── format.test.ts
 │   │   │   │   ├── retry.test.ts
@@ -343,7 +349,7 @@ DocMind/
 
 ## 测试
 
-### 后端测试（160 个用例）
+### 后端测试（206 个用例）
 
 ```bash
 cd backend
@@ -364,7 +370,7 @@ python -m pytest tests/ -v
 - **Auth API**：注册密码校验、缺少字段、无效邮箱
 - **MemoryService**：短期/长期/工作/反思记忆 + Agent 记忆系统集成（52 个用例）
 
-### 前端测试（91 个用例）
+### 前端测试（100 个用例）
 
 ```bash
 cd frontend
@@ -383,8 +389,8 @@ npm test
 ### CI/CD
 
 Push 或 PR 到 `main` / `develop` 分支时，GitHub Actions 自动运行：
-- 后端测试（Python 3.11 + 3.12）
-- 前端测试（Node 18 + 20）
+- 后端测试 206 个（Python 3.11 + 3.12）
+- 前端测试 100 个（Node 18 + 20）
 - TypeScript 类型检查（`vue-tsc --noEmit`，零错误要求）
 - 生产构建（`npm run build`）
 - ESLint 检查（零错误零警告）
@@ -484,7 +490,7 @@ chat/index.vue (230 行)
 - WebSocket 指数退避重连（1s→16s + jitter）
 - `catch (error: any)` → 类型安全的 `_extractErrorMessage`
 
-**验证**：后端 160 测试 + 前端 91 测试 + 零类型错误
+**验证**：后端 206 测试 + 前端 100 测试 + 零类型错误
 
 ### 2026-05-08（Agent 系统 + 异常体系）
 

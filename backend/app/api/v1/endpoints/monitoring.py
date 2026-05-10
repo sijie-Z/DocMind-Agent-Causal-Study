@@ -4,7 +4,7 @@
 """
 
 from typing import Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 import time
@@ -28,12 +28,13 @@ from app.core.middleware import metrics_collector
 from app.core.elasticsearch import get_elasticsearch
 from app.core.redis import redis_client
 from app.core.config import settings
+from app.exceptions import AuthenticationError
 
 router = APIRouter()
 _recent_external_alerts: deque = deque(maxlen=max(50, int(settings.ALERT_RECENT_BUFFER_SIZE)))
 _in_memory_alert_dedup: Dict[str, float] = {}
 
-@router.get("/stats", summary="获取系统统计信息", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/stats", response_model=dict, summary="获取系统统计信息", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def get_system_stats(
     db: AsyncSession = Depends(get_db)
 ):
@@ -53,7 +54,7 @@ async def get_system_stats(
         "system_status": "running"
     }
 
-@router.get("/dashboard", summary="获取监控仪表盘数据", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/dashboard", response_model=dict, summary="获取监控仪表盘数据", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def get_monitoring_dashboard(
     db: AsyncSession = Depends(get_db)
 ):
@@ -139,7 +140,7 @@ async def get_monitoring_dashboard(
         "timestamp": int(time.time())
     }
 
-@router.get("/metrics/{metric_type}", summary="获取趋势指标", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/metrics/{metric_type}", response_model=dict, summary="获取趋势指标", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def get_metrics(
     metric_type: str,
     time_range: str = Query("1h"),
@@ -183,7 +184,7 @@ async def get_metrics(
         
     return {"data": history}
 
-@router.get("/alerts", summary="获取系统告警", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/alerts", response_model=dict, summary="获取系统告警", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def get_alerts(
     limit: int = 10,
     db: AsyncSession = Depends(get_db),
@@ -286,7 +287,7 @@ async def get_alerts(
         "total": len(alerts),
     }
 
-@router.get("/alerts/rules", summary="获取告警规则", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/alerts/rules", response_model=dict, summary="获取告警规则", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def get_alert_rules():
     return {
         "error_rate_percent": settings.ALERT_ERROR_RATE_PERCENT,
@@ -295,12 +296,12 @@ async def get_alert_rules():
         "slow_request_threshold_ms": settings.SLOW_REQUEST_THRESHOLD_MS,
     }
 
-@router.post("/alerts/webhook", summary="接收 Alertmanager 告警回调")
+@router.post("/alerts/webhook", response_model=dict, summary="接收 Alertmanager 告警回调")
 async def receive_alertmanager_webhook(request: Request):
     """接收 Alertmanager 回调：鉴权 + 去重 + 缓冲。"""
     token = request.query_params.get("token", "")
     if settings.ALERT_WEBHOOK_TOKEN and token != settings.ALERT_WEBHOOK_TOKEN:
-        raise HTTPException(status_code=401, detail="invalid_webhook_token")
+        raise AuthenticationError(detail="invalid_webhook_token")
 
     payload = await request.json()
     alerts = payload.get("alerts", []) if isinstance(payload, dict) else []
@@ -383,14 +384,14 @@ async def receive_alertmanager_webhook(request: Request):
         "items": accepted_items[:20],
     }
 
-@router.get("/alerts/recent", summary="获取最近接收的外部告警", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/alerts/recent", response_model=dict, summary="获取最近接收的外部告警", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def get_recent_external_alerts(limit: int = Query(20, ge=1, le=200)):
     return {
         "items": list(_recent_external_alerts)[:limit],
         "total": len(_recent_external_alerts),
     }
 
-@router.get("/route-stats", summary="获取路由性能统计", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/route-stats", response_model=dict, summary="获取路由性能统计", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def get_route_stats(
     limit: int = Query(20, ge=1, le=200),
     sort_by: str = Query("p95", pattern="^(p95|p99|avg|count)$"),
@@ -710,3 +711,90 @@ async def get_admin_summary(
             "total_users": 0, "total_documents": 0,
             "total_sessions": 0, "active_users_24h": 0, "total_organizations": 0
         }
+
+
+# ── RAG Quality Evaluation ─────────────────────────────────────
+
+from pydantic import BaseModel, Field
+
+
+class EvalItem(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    answer: str = Field(..., min_length=1, max_length=10000)
+    context: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class BatchEvalRequest(BaseModel):
+    items: List[EvalItem] = Field(..., min_length=1, max_length=20)
+
+
+@router.post("/rag-eval", summary="RAG 质量评估（单条）", dependencies=[Depends(get_current_user)])
+async def rag_eval_single(item: EvalItem):
+    """评估单条 RAG 回答的 Faithfulness / Relevancy / Context Precision。"""
+    try:
+        from app.rag.evaluator import RAGEvaluator
+        from app.core.prometheus import RAG_EVAL_TOTAL, RAG_EVAL_FAITHFULNESS, RAG_EVAL_RELEVANCY, RAG_EVAL_CONTEXT_PRECISION
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(
+            api_key=settings.DEEPSEEK_API_KEY,
+            base_url=settings.DEEPSEEK_BASE_URL,
+        )
+        evaluator = RAGEvaluator(client=client, model=settings.DEEPSEEK_MODEL)
+        result = await evaluator.evaluate(
+            question=item.question,
+            answer=item.answer,
+            context=item.context,
+        )
+
+        RAG_EVAL_TOTAL.inc()
+        RAG_EVAL_FAITHFULNESS.observe(result.faithfulness)
+        RAG_EVAL_RELEVANCY.observe(result.relevancy)
+        RAG_EVAL_CONTEXT_PRECISION.observe(result.context_precision)
+
+        return {
+            "faithfulness": result.faithfulness,
+            "relevancy": result.relevancy,
+            "context_precision": result.context_precision,
+            "details": result.details,
+        }
+    except Exception as e:
+        logger.error(f"RAG eval failed: {e}")
+        return {
+            "faithfulness": 0, "relevancy": 0, "context_precision": 0,
+            "details": {"error": str(e)},
+        }
+
+
+@router.post("/rag-eval-batch", summary="RAG 质量批量评估", dependencies=[Depends(get_current_user)])
+async def rag_eval_batch(body: BatchEvalRequest):
+    """批量评估多条 RAG 回答，返回聚合指标。"""
+    try:
+        from app.rag.evaluator import RAGEvaluator
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(
+            api_key=settings.DEEPSEEK_API_KEY,
+            base_url=settings.DEEPSEEK_BASE_URL,
+        )
+        evaluator = RAGEvaluator(client=client, model=settings.DEEPSEEK_MODEL)
+        batch_result = await evaluator.evaluate_batch(
+            [item.model_dump() for item in body.items]
+        )
+        return {
+            "count": batch_result.count,
+            "avg_faithfulness": batch_result.avg_faithfulness,
+            "avg_relevancy": batch_result.avg_relevancy,
+            "avg_context_precision": batch_result.avg_context_precision,
+            "results": [
+                {
+                    "faithfulness": r.faithfulness,
+                    "relevancy": r.relevancy,
+                    "context_precision": r.context_precision,
+                }
+                for r in batch_result.results
+            ],
+        }
+    except Exception as e:
+        logger.error(f"RAG batch eval failed: {e}")
+        return {"count": 0, "avg_faithfulness": 0, "avg_relevancy": 0, "avg_context_precision": 0, "results": []}

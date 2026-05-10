@@ -27,7 +27,13 @@
       @deleteConversation="handleDeleteConversation"
     />
 
-    <main class="flex-1 flex flex-col h-full relative min-w-0">
+    <main
+      class="flex-1 flex flex-col h-full relative min-w-0"
+      @dragover.prevent="onDragOver"
+      @dragenter.prevent="onDragEnter"
+      @dragleave.prevent="onDragLeave"
+      @drop.prevent="onDrop"
+    >
       <ChatHeader
         :sidebarOpen="sidebarOpen"
         :title="chatStore.currentConversation?.title"
@@ -36,6 +42,7 @@
         @toggleSidebar="toggleSidebar"
         @clearChat="clearChat"
         @unbind="handleUnbind"
+        @exportChat="handleExportChat"
       />
 
       <ChatMessages
@@ -50,7 +57,23 @@
         @useSuggestion="useSuggestion"
         @feedback="handleFeedback"
         @copy="copyText"
+        @regenerate="handleRegenerate"
       />
+
+      <!-- Drag-and-drop overlay -->
+      <transition name="fade">
+        <div
+          v-if="isDragging"
+          class="absolute inset-0 z-50 flex items-center justify-center bg-blue-500/10 dark:bg-blue-400/10 backdrop-blur-sm border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg pointer-events-none"
+        >
+          <div class="flex flex-col items-center gap-3">
+            <n-icon size="48" class="text-blue-500 dark:text-blue-400">
+              <CloudUploadOutline />
+            </n-icon>
+            <span class="text-lg font-semibold text-blue-600 dark:text-blue-400">{{ t('chat.dropFiles') || '拖拽文件到此处上传' }}</span>
+          </div>
+        </div>
+      </transition>
 
       <ChatInput
         v-model:inputMessage="inputMessage"
@@ -73,13 +96,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useDedupedMessage } from '@/utils/message'
+import { CloudUploadOutline } from '@vicons/ionicons5'
 import { getConversationMessages, clearConversationMessages } from '@/api/chat'
 import type { Conversation } from '@/api/conversation'
 import type { ChatMessage } from '@/types/chat'
@@ -120,7 +144,7 @@ const {
 } = useChatConnection(messages, baseScrollToBottom, fetchConversations)
 
 const {
-  inputMessage, strictMode, privacyMode, handleSend: baseHandleSend
+  inputMessage, strictMode, privacyMode, handleSend: baseHandleSend, regenerateMessage
 } = useChatSend(
   messages, attachedFiles, attachedFileIds,
   baseScrollToBottom, fetchConversations,
@@ -135,6 +159,99 @@ const handleFileUpload = async (event: Event) => {
 }
 
 const handleSend = baseHandleSend
+
+// Feature 1: Regenerate last assistant response
+const handleRegenerate = (assistantMsg: ChatMessage) => {
+  const lastAssistantIdx = messages.value.lastIndexOf(assistantMsg)
+  if (lastAssistantIdx < 1) return
+  // Find the last user message before this assistant message
+  let userMsgContent = ''
+  for (let i = lastAssistantIdx - 1; i >= 0; i--) {
+    if (messages.value[i].messageType === 'user') {
+      userMsgContent = messages.value[i].content
+      break
+    }
+  }
+  if (!userMsgContent) return
+  // Remove the assistant message
+  messages.value.splice(lastAssistantIdx, 1)
+  // Re-send the user message
+  nextTick(() => regenerateMessage(userMsgContent))
+}
+
+// Feature 2: Drag-and-drop file upload
+const isDragging = ref(false)
+let dragCounter = 0
+
+const onDragOver = (e: DragEvent) => {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+
+const onDragEnter = (e: DragEvent) => {
+  e.preventDefault()
+  dragCounter++
+  if (e.dataTransfer?.types?.includes('Files')) {
+    isDragging.value = true
+  }
+}
+
+const onDragLeave = (e: DragEvent) => {
+  e.preventDefault()
+  dragCounter--
+  if (dragCounter <= 0) {
+    dragCounter = 0
+    isDragging.value = false
+  }
+}
+
+const onDrop = async (e: DragEvent) => {
+  isDragging.value = false
+  dragCounter = 0
+  if (!e.dataTransfer?.files?.length) return
+  // Create a synthetic input event to reuse existing file upload logic
+  const dt = e.dataTransfer
+  const input = document.getElementById('global-chat-file-input') as HTMLInputElement | null
+  if (input) {
+    // Use DataTransfer to set files on the hidden input
+    const dataTransfer = new DataTransfer()
+    for (let i = 0; i < dt.files.length; i++) {
+      dataTransfer.items.add(dt.files[i])
+    }
+    input.files = dataTransfer.files
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    // Reset input so same file can be selected again
+    input.value = ''
+  }
+}
+
+// Feature 4: Export chat as markdown
+const handleExportChat = () => {
+  if (messages.value.length === 0) return
+  let md = `# ${chatStore.currentConversation?.title || 'Chat Export'}\n\n`
+  md += `> Exported on ${new Date().toLocaleString()}\n\n---\n\n`
+  for (const msg of messages.value) {
+    const role = msg.messageType === 'user' ? 'User' : 'Assistant'
+    md += `### ${role}\n\n${msg.content}\n\n`
+    if (msg.sources && msg.sources.length > 0) {
+      md += '**Sources:**\n\n'
+      msg.sources.forEach((s, i) => {
+        md += `- [${i + 1}] ${s.filename || 'Document'}${s.relevanceScore ? ` (score: ${(s.relevanceScore * 100).toFixed(0)}%)` : ''}\n`
+      })
+      md += '\n'
+    }
+    md += '---\n\n'
+  }
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${chatStore.currentConversation?.title || 'chat-export'}-${Date.now()}.md`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 const suggestions = computed(() => [
   { title: t('chat.suggestions.quantum'), desc: t('chat.suggestions.quantumDesc') },

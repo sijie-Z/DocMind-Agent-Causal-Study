@@ -17,7 +17,7 @@ import uuid
 
 from app.core.config import settings
 from app.core.redis import redis_client
-from app.core.logging import request_id_var
+from app.core.logging import request_id_var, trace_id_var, user_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +292,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
         route_path = request.url.path
         method = request.method
         token = request_id_var.set(request_id)
+        trace_token = trace_id_var.set(request.headers.get("X-Trace-ID") or request_id)
         
         try:
             response = await call_next(request)
@@ -354,3 +355,4 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
         finally:
             await metrics_collector.dec_active_connections()
             request_id_var.reset(token)
+            trace_id_var.reset(trace_token)

@@ -19,14 +19,12 @@ class AuditService:
         detail: Optional[str] = None,
         request: Optional[Request] = None,
         db: Optional[AsyncSession] = None
-    ):
-        """
-        记录用户活动日志
-        """
+    ) -> None:
+        """记录用户活动日志 — 始终使用独立 session，不干扰调用方事务"""
         try:
             ip_address = None
             user_agent = None
-            
+
             if request:
                 ip_address = request.client.host if request.client else None
                 user_agent = request.headers.get("user-agent")
@@ -41,14 +39,10 @@ class AuditService:
                 user_agent=user_agent
             )
 
-            if db:
-                db.add(log_entry)
-                await db.commit()
-            else:
-                async with AsyncSessionLocal() as session:
-                    session.add(log_entry)
-                    await session.commit()
-                    
+            async with AsyncSessionLocal() as session:
+                session.add(log_entry)
+                await session.commit()
+
         except Exception as e:
             logger.error(f"Failed to log activity: {e}")
 

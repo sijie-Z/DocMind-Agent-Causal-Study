@@ -35,7 +35,7 @@ services:
       - ./logs:/app/logs
       - ./temp_uploads:/app/temp_uploads
     networks:
-      - paicongming-network
+      - docmind-network
     restart: unless-stopped
 
   # RAG Worker - document parsing and indexing
@@ -63,7 +63,7 @@ services:
       kafka:
         condition: service_started
     networks:
-      - paicongming-network
+      - docmind-network
     restart: unless-stopped
 
   # MySQL 8 with UTF8MB4

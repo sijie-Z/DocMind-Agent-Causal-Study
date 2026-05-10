@@ -112,7 +112,9 @@ import { useDedupedMessage } from '@/utils/message'
 import { useUserStore } from '@/stores/user'
 import { BookOutline, AddOutline, SearchOutline, CreateOutline, TrashOutline, DocumentTextOutline } from '@vicons/ionicons5'
 import { getManuals, createManual, updateManual, deleteManual, type Manual } from '@/api/manual'
-import { marked } from 'marked'
+import MarkdownIt from 'markdown-it'
+
+const md = new MarkdownIt({ html: false, linkify: true })
 import { formatDate } from '@/utils/format'
 import { NIcon } from 'naive-ui'
 
@@ -150,7 +152,7 @@ const categoryOptions = [
 // 渲染 Markdown
 const renderedContent = computed(() => {
   if (!currentManual.value?.content) return ''
-  return marked(currentManual.value.content)
+  return md.render(currentManual.value.content)
 })
 
 const currentManual = computed(() => {

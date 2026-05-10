@@ -50,3 +50,21 @@ export const deleteConversation = async (id: string): Promise<void> => {
 export const batchDeleteConversations = async (ids: string[]): Promise<void> => {
   return request.delete('/chat/conversations/batch', { data: { ids } })
 }
+
+// 获取对话消息详情（别名，向后兼容）
+export const getConversationMessages = getConversation
+
+// 清空会话消息
+export const clearConversationMessages = async (conversationId: string) => {
+  return request.delete<ApiResponse>(`/chat/conversations/${conversationId}/clear`)
+}
+
+// 解除文档绑定
+export const unbindConversationDocs = async (conversationId: string) => {
+  return request.post<ApiResponse>(`/chat/conversations/${conversationId}/unbind-docs`)
+}
+
+// 消息反馈 (点赞/点踩)
+export const updateMessageFeedback = async (messageId: string | number, feedback: number, note?: string) => {
+  return request.post<ApiResponse>(`/chat/messages/${messageId}/feedback`, { feedback, note })
+}

@@ -64,7 +64,7 @@ class PermissionService:
 
         return permissions_set
 
-    async def initialize_default_permissions_and_roles(self):
+    async def initialize_default_permissions_and_roles(self) -> None:
         """初始化基础权限和角色数据"""
         async with AsyncSessionLocal() as db:
             logger.debug("开始初始化默认权限和角色...")

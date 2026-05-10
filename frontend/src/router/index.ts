@@ -77,6 +77,15 @@ export const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'knowledge/graph',
+        name: 'KnowledgeGraph',
+        component: () => import('@/views/knowledge/graph.vue'),
+        meta: {
+          title: '知识图谱',
+          icon: 'git-network'
+        }
+      },
+      {
         path: 'prompts',
         name: 'Prompts',
         component: () => import('@/views/prompts/index.vue'),

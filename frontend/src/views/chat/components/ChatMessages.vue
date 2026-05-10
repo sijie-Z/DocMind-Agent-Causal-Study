@@ -81,14 +81,48 @@
                   : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-tl-md border border-gray-100 dark:border-gray-700'"
               >
                 <Markdown v-if="message.messageType === 'assistant'" :content="message.content" />
+                <span
+                  v-if="message.messageType === 'assistant' && isLoading && index === messages.length - 1"
+                  class="inline-block w-0.5 h-4 bg-blue-500 dark:bg-blue-400 ml-0.5 align-middle animate-blink"
+                />
                 <div v-else class="whitespace-pre-wrap">{{ message.content }}</div>
 
                 <div v-if="message.sources && message.sources.length > 0" class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">来源：</div>
-                  <div class="flex flex-wrap gap-1">
-                    <n-tag v-for="(source, idx) in message.sources" :key="idx" size="tiny" round>
-                      {{ source.filename || source.title || '文档' }}
-                    </n-tag>
+                  <div class="text-xs text-gray-500 dark:text-gray-400 mb-1.5 font-medium">来源引用：</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <n-popover
+                      v-for="(source, idx) in message.sources"
+                      :key="idx"
+                      trigger="hover"
+                      placement="top"
+                      :delay="200"
+                      :duration="200"
+                    >
+                      <template #trigger>
+                        <n-tag
+                          size="tiny"
+                          round
+                          :bordered="false"
+                          class="cursor-pointer bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                        >
+                          <template #icon>
+                            <n-icon size="10" class="mr-0.5"><DocumentTextOutline /></n-icon>
+                          </template>
+                          [{{ idx + 1 }}] {{ source.filename || source.title || '文档' }}
+                        </n-tag>
+                      </template>
+                      <div class="max-w-sm p-2">
+                        <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          {{ source.filename || '未知文档' }}
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-6">
+                          {{ source.snippet || source.text || '无预览' }}
+                        </div>
+                        <div v-if="source.score" class="mt-1.5 text-[10px] text-gray-400">
+                          相关度: {{ (source.score * 100).toFixed(0) }}%
+                        </div>
+                      </div>
+                    </n-popover>
                   </div>
                 </div>
               </div>
@@ -119,6 +153,15 @@
                 <n-button size="tiny" quaternary circle class="text-gray-400" @click="$emit('copy', message.content)">
                   <template #icon><n-icon><CopyOutline /></n-icon></template>
                 </n-button>
+                <n-tooltip v-if="index === messages.length - 1 && message.messageType === 'assistant'" trigger="hover">
+                  <template #trigger>
+                    <n-button size="tiny" quaternary circle class="text-gray-400 hover:text-blue-600"
+                      @click="$emit('regenerate', message)">
+                      <template #icon><n-icon><RefreshOutline /></n-icon></template>
+                    </n-button>
+                  </template>
+                  重新生成
+                </n-tooltip>
               </div>
             </div>
           </div>
@@ -159,7 +202,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { SparklesOutline, ArrowForwardOutline, ArrowDownOutline, ThumbsUpOutline, ThumbsDownOutline, CopyOutline } from '@vicons/ionicons5'
+import { SparklesOutline, ArrowForwardOutline, ArrowDownOutline, ThumbsUpOutline, ThumbsDownOutline, CopyOutline, DocumentTextOutline, RefreshOutline } from '@vicons/ionicons5'
+import { NPopover } from 'naive-ui'
 import Markdown from '@/components/common/Markdown.vue'
 import type { ChatMessage } from '@/types/chat'
 
@@ -179,5 +223,16 @@ defineEmits<{
   useSuggestion: [suggestion: { title: string; desc: string }]
   feedback: [msg: ChatMessage, feedback: number]
   copy: [text: string]
+  regenerate: [msg: ChatMessage]
 }>()
 </script>
+
+<style scoped>
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-blink {
+  animation: blink 0.8s step-end infinite;
+}
+</style>

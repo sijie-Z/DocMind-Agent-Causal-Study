@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from pydantic import BaseModel, ConfigDict
@@ -12,6 +12,7 @@ from app.models.user import User
 from app.services.auth_service import AuthService
 from app.core.security import get_current_user, permission_required
 from app.models.rbac import PermissionType
+from app.exceptions import NotFoundError
 
 router = APIRouter()
 auth_service = AuthService()
@@ -78,7 +79,7 @@ async def get_manual(
     manual = result.scalar_one_or_none()
     
     if not manual:
-        raise HTTPException(status_code=404, detail="手册不存在")
+        raise NotFoundError(detail="手册不存在")
         
     return manual
 
@@ -107,7 +108,7 @@ async def update_manual(
     manual = result.scalar_one_or_none()
 
     if not manual:
-        raise HTTPException(status_code=404, detail="手册不存在")
+        raise NotFoundError(detail="手册不存在")
 
     update_data = manual_in.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -117,7 +118,7 @@ async def update_manual(
     await db.refresh(manual)
     return manual
 
-@router.delete("/{manual_id}", summary="删除手册", dependencies=[Depends(permission_required([PermissionType.MANAGE_SYSTEM_PROMPTS]))])
+@router.delete("/{manual_id}", response_model=dict, summary="删除手册", dependencies=[Depends(permission_required([PermissionType.MANAGE_SYSTEM_PROMPTS]))])
 async def delete_manual(
     manual_id: int,
     current_user: User = Depends(get_current_user),
@@ -128,7 +129,7 @@ async def delete_manual(
     manual = result.scalar_one_or_none()
 
     if not manual:
-        raise HTTPException(status_code=404, detail="手册不存在")
+        raise NotFoundError(detail="手册不存在")
 
     await db.delete(manual)
     await db.commit()

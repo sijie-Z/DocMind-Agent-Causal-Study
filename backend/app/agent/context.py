@@ -11,13 +11,20 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Approximate chars per token (varies by language; CJK ≈ 1.5, EN ≈ 4)
-CHARS_PER_TOKEN = 2.5
+# tiktoken-based token counting (cl100k_base is a good approximation for most LLMs)
+try:
+    import tiktoken
+    _ENCODER = tiktoken.get_encoding("cl100k_base")
+except ImportError:
+    _ENCODER = None
+    logger.warning("tiktoken not installed, falling back to heuristic token counting")
 
 
 def estimate_tokens(text: str) -> int:
-    """Rough token count estimate."""
-    return max(1, int(len(text) / CHARS_PER_TOKEN))
+    """Token count estimate using tiktoken when available."""
+    if _ENCODER:
+        return max(1, len(_ENCODER.encode(text)))
+    return max(1, int(len(text) / 2.5))
 
 
 def estimate_messages_tokens(messages: List[Dict[str, str]]) -> int:

@@ -330,6 +330,29 @@ import {
 } from '@/api/organization'
 import type { OrganizationMember, OrganizationDocument } from '@/types/api'
 
+/** Safely extract error message from unknown error */
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Safely extract detail from axios-style error response */
+function getResponseDetail(error: unknown): string | undefined {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const resp = (error as { response?: { data?: { detail?: string } } }).response
+    return resp?.data?.detail
+  }
+  return undefined
+}
+
+/** Safely get response status from axios-style error */
+function getResponseStatus(error: unknown): number | undefined {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const resp = (error as { response?: { status?: number } }).response
+    return resp?.status
+  }
+  return undefined
+}
+
 // 1. 定义接口
 interface Organization {
   id: number
@@ -467,8 +490,8 @@ const handleDrop = async ({ node, dragNode, dropPosition }: TreeDropInfo) => {
     await updateOrganization(dragId, { parent_id, sort_order })
     message.success(t('org.adjustSuccess'))
     await loadOrganizations()
-  } catch (err: any) {
-    message.error(t('org.adjustFailed') + ': ' + err.message)
+  } catch (err: unknown) {
+    message.error(t('org.adjustFailed') + ': ' + getErrorMessage(err))
   } finally {
     loading.value = false
   }
@@ -482,8 +505,8 @@ const handleBatchDelete = async () => {
     message.success(t('org.batchDeleteSuccess'))
     selectedIds.value = []
     await loadOrganizations()
-  } catch (err: any) {
-    message.error(t('org.deleteFailed') + ': ' + (err.response?.data?.detail || err.message))
+  } catch (err: unknown) {
+    message.error(t('org.deleteFailed') + ': ' + (getResponseDetail(err) || getErrorMessage(err)))
   } finally {
     loading.value = false
   }
@@ -504,8 +527,8 @@ const showOrgDetails = async (orgId: number) => {
     ])
     orgMembers.value = membersRes.data.data
     orgDocuments.value = docsRes.data.data
-  } catch (err: any) {
-    message.error(t('org.loadDetailsFailed') + ': ' + err.message)
+  } catch (err: unknown) {
+    message.error(t('org.loadDetailsFailed') + ': ' + getErrorMessage(err))
   } finally {
     loadingDetails.value = false
   }
@@ -610,15 +633,15 @@ const loadOrganizations = async () => {
     if (treeRes.data && treeRes.data.data) {
       fullTree.value = treeRes.data.data
     }
-  } catch (err: any) {
-    if (err?.response?.status === 403) {
+  } catch (err: unknown) {
+    if (getResponseStatus(err) === 403) {
       permissionDenied.value = true
       organizations.value = []
       fullTree.value = []
       pagination.itemCount = 0
       return
     }
-    message.error(t('org.loadFailed') + ': ' + err.message)
+    message.error(t('org.loadFailed') + ': ' + getErrorMessage(err))
   } finally {
     loading.value = false
   }
@@ -680,10 +703,11 @@ const saveOrganization = async () => {
     
     showCreateModal.value = false
     await loadOrganizations()
-  } catch (err: any) {
+  } catch (err: unknown) {
     // 只有当 err 包含 message 且不是校验失败的 error 时才报错
-    if (err && err.message) {
-      message.error(t('org.saveFailed') + ': ' + err.message)
+    const errMsg = getErrorMessage(err)
+    if (errMsg) {
+      message.error(t('org.saveFailed') + ': ' + errMsg)
     }
   } finally {
     saving.value = false
@@ -695,7 +719,7 @@ const handleDelete = async (id: number) => {
     await deleteOrganization(id)
     message.success(t('org.deleted'))
     loadOrganizations()
-  } catch (err: any) {
+  } catch (err: unknown) {
     message.error(t('org.deleteFailed'))
   }
 }

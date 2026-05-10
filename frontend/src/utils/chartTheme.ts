@@ -113,11 +113,93 @@ export const CHART_THEME = {
   },
 }
 
-export function createChartOption(baseOption: Record<string, unknown>): Record<string, unknown> {
-  return { ...CHART_THEME, ...baseOption }
+export const DARK_CHART_THEME = {
+  color: [CHART_COLORS.primary, CHART_COLORS.secondary, CHART_COLORS.purple, CHART_COLORS.cyan, CHART_COLORS.warning],
+  backgroundColor: 'transparent',
+  textStyle: {
+    color: '#9ca3af',
+  },
+  title: {
+    textStyle: {
+      color: '#f3f4f6',
+      fontWeight: 600,
+    },
+    subtextStyle: {
+      color: '#9ca3af',
+    },
+  },
+  line: CHART_THEME.line,
+  bar: CHART_THEME.bar,
+  pie: {
+    ...CHART_THEME.pie,
+    itemStyle: {
+      borderRadius: 4,
+      borderColor: '#1f2937',
+      borderWidth: 2,
+    },
+    label: {
+      color: '#9ca3af',
+    },
+  },
+  grid: CHART_THEME.grid,
+  tooltip: {
+    trigger: 'axis',
+    backgroundColor: 'rgba(31, 41, 55, 0.95)',
+    borderColor: '#374151',
+    borderWidth: 1,
+    textStyle: {
+      color: '#f3f4f6',
+    },
+    axisPointer: {
+      type: 'cross',
+      crossStyle: {
+        color: '#6b7280',
+      },
+    },
+  },
+  legend: {
+    textStyle: {
+      color: '#9ca3af',
+    },
+  },
+  xAxis: {
+    axisLine: {
+      lineStyle: {
+        color: '#374151',
+      },
+    },
+    axisLabel: {
+      color: '#9ca3af',
+    },
+    splitLine: {
+      lineStyle: {
+        color: '#1f2937',
+      },
+    },
+  },
+  yAxis: {
+    axisLine: {
+      lineStyle: {
+        color: '#374151',
+      },
+    },
+    axisLabel: {
+      color: '#9ca3af',
+    },
+    splitLine: {
+      lineStyle: {
+        color: '#1f2937',
+      },
+    },
+  },
 }
 
-export function initChartWithTheme(dom: HTMLElement): echarts.ECharts {
-  const chart = echarts.init(dom)
+export function createChartOption(baseOption: Record<string, unknown>, isDark = false): Record<string, unknown> {
+  const theme = isDark ? DARK_CHART_THEME : CHART_THEME
+  return { ...theme, ...baseOption }
+}
+
+export function initChartWithTheme(dom: HTMLElement, isDark = false): echarts.ECharts {
+  const chart = echarts.init(dom, isDark ? 'dark' : undefined)
   return chart
 }

@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 派聪明AI知识库系统 - 组织模型
 """
-
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table
-from sqlalchemy.orm import relationship
+from typing import Optional, List
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Table, Integer, Column
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -18,63 +17,60 @@ user_organization = Table(
     Column('created_at', DateTime, default=func.now())
 )
 
+
 class Organization(Base):
     """组织模型"""
     __tablename__ = "organizations"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, index=True, nullable=False)
-    description = Column(String(500))
-    color = Column(String(20), default="#18a058")
-    is_private = Column(Boolean, default=False)
-    
-    parent_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
-    level = Column(Integer, default=1)
-    sort_order = Column(Integer, default=0)
-    
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    description: Mapped[Optional[str]] = mapped_column(String(500))
+    color: Mapped[str] = mapped_column(String(20), default="#18a058")
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("organizations.id"))
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+
     # 关联
-    # 自关联，实现树形结构
-    parent = relationship("Organization", remote_side=[id], back_populates="children")
-    children = relationship("Organization", back_populates="parent", cascade="all, delete-orphan")
-    
-    # 👇👇👇 关键点：必须加 foreign_keys
-    owner = relationship(
-        "User", 
+    parent: Mapped[Optional["Organization"]] = relationship("Organization", remote_side=[id], back_populates="children")
+    children: Mapped[List["Organization"]] = relationship("Organization", back_populates="parent", cascade="all, delete-orphan")
+
+    owner: Mapped[Optional["User"]] = relationship(
+        "User",
         back_populates="owned_organizations",
         foreign_keys=[owner_id],
-        overlaps="owned_organizations" # 消除警告
+        overlaps="owned_organizations"
     )
-    
-    # 👇👇👇 关键点：添加 users 关系并指定 foreign_keys
-    users = relationship(
+
+    users: Mapped[List["User"]] = relationship(
         "User",
         back_populates="organization",
         foreign_keys="User.organization_id"
     )
 
-    members = relationship(
+    members: Mapped[List["User"]] = relationship(
         "User",
         secondary=user_organization,
         back_populates="organizations",
-        lazy="selectin" # 异步加载必须加这个
+        lazy="selectin"
     )
-    
-    documents = relationship("Document", back_populates="organization", lazy="selectin")
-    chat_sessions = relationship("ChatSession", back_populates="organization", lazy="selectin")
 
-    user_organization_roles = relationship(
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="organization", lazy="selectin")
+    chat_sessions: Mapped[List["ChatSession"]] = relationship("ChatSession", back_populates="organization", lazy="selectin")
+
+    user_organization_roles: Mapped[List["Role"]] = relationship(
         "Role",
         secondary="user_organization_role_association",
         overlaps="roles_in_organizations",
-        viewonly=True, # 如果只是用来查询，设为 viewonly 更安全
+        viewonly=True,
         lazy="selectin"
     )
-    
+
     def __repr__(self):
         return f"<Organization(id={self.id}, name='{self.name}', is_private={self.is_private})>"
-        

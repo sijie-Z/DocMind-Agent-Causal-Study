@@ -34,6 +34,14 @@
     <div class="flex items-center space-x-2">
       <n-tooltip trigger="hover">
         <template #trigger>
+          <n-button quaternary circle size="small" @click="$emit('exportChat')" class="text-gray-500 dark:text-gray-400" :disabled="!hasConversation">
+            <template #icon><n-icon><DownloadOutline /></n-icon></template>
+          </n-button>
+        </template>
+        {{ t('chat.exportChat') || '导出对话' }}
+      </n-tooltip>
+      <n-tooltip trigger="hover">
+        <template #trigger>
           <n-button quaternary circle size="small" @click="$emit('clearChat')" class="text-gray-500 dark:text-gray-400" :disabled="!hasConversation">
             <template #icon><n-icon><TrashOutline /></n-icon></template>
           </n-button>
@@ -46,7 +54,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { MenuOutline, CloseOutline, SparklesOutline, TrashOutline, AttachOutline } from '@vicons/ionicons5'
+import { MenuOutline, CloseOutline, SparklesOutline, TrashOutline, AttachOutline, DownloadOutline } from '@vicons/ionicons5'
 
 const { t } = useI18n()
 
@@ -61,5 +69,6 @@ defineEmits<{
   toggleSidebar: []
   clearChat: []
   unbind: []
+  exportChat: []
 }>()
 </script>

@@ -25,7 +25,7 @@ class GraphRAGService:
             "TECHNOLOGY": "技术"
         }
 
-    def extract_entities_with_llm(self, text: str, llm_client=None) -> List[Dict[str, Any]]:
+    def extract_entities_with_llm(self, text: str, llm_client: Any = None) -> List[Dict[str, Any]]:
         if not text or len(text) < 50:
             return []
 
@@ -43,8 +43,9 @@ JSON返回："""
 
         try:
             if llm_client:
+                from app.core.config import settings
                 response = llm_client.chat.completions.create(
-                    model="deepseek-chat",
+                    model=settings.DEEPSEEK_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1
                 )
@@ -96,7 +97,7 @@ JSON返回："""
 
         return entities[:20]
 
-    def build_graph_from_entities(self, entities: List[Dict[str, Any]]):
+    def build_graph_from_entities(self, entities: List[Dict[str, Any]]) -> None:
         for ent in entities:
             entity_name = ent.get("entity", "")
             if not entity_name:

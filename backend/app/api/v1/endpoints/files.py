@@ -2,7 +2,7 @@
 文件上传API端点 - 已修复头像上传500错误
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import Request
@@ -20,6 +20,7 @@ from app.schemas.file import (
     FileDeleteResponse
 )
 from app.models.rbac import PermissionType
+from app.exceptions import NotFoundError, ValidationError, AuthorizationError, ConflictError, AppError
 
 router = APIRouter()
 
@@ -52,9 +53,9 @@ async def upload_file(
         await db.commit()
         return FileUploadResponse(**result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise AppError(str(e))
 
-@router.post("/upload/avatar")
+@router.post("/upload/avatar", response_model=dict)
 async def upload_avatar(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -89,7 +90,7 @@ async def upload_avatar(
         
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"头像上传失败: {str(e)}")
+        raise AppError(f"头像上传失败: {str(e)}")
 
 @router.post("/upload-chunk", response_model=FileChunkUploadResponse)
 async def upload_file_chunk(
@@ -109,7 +110,7 @@ async def upload_file_chunk(
         )
         return FileChunkUploadResponse(**result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise AppError(str(e))
 
 @router.get("/list", response_model=FileListResponse)
 async def get_document_list(
@@ -127,7 +128,7 @@ async def get_document_list(
         )
         return FileListResponse(**result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise AppError(str(e))
 
 @router.delete("/{document_id}", response_model=FileDeleteResponse, dependencies=[Depends(permission_required([PermissionType.DOCUMENT_DELETE]))])
 async def delete_document(
@@ -152,6 +153,6 @@ async def delete_document(
             )
         return FileDeleteResponse(success=success, message="删除成功" if success else "删除失败")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise AppError(str(e))
          
          

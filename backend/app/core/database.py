@@ -35,14 +35,23 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 async def init_db():
-    """初始化数据库"""
+    """初始化数据库 — 开发模式使用 create_all，生产模式应使用 Alembic。
+
+    设置 ``USE_ALEMBIC=true`` 环境变量可跳过 create_all，由 Alembic 管理 schema。
+    """
     try:
-        logger.info("正在初始化数据库...")
+        import os
+        use_alembic = os.getenv("USE_ALEMBIC", "").lower() in ("1", "true", "yes")
 
-        # 🛑 关键：必须导入模型，否则 Base.metadata.create_all 不会创建任何表
-        from app.models import User, Organization, Document, ChatSession, Notification, PromptTemplate, UserLoginSession, UserActivityLog, KnowledgeProcessingJob, Workflow, WorkflowExecution, NodeDefinition
+        if use_alembic:
+            logger.info("数据库 schema 由 Alembic 管理，跳过 create_all")
+            return
 
-        # 创建所有表
+        logger.info("正在初始化数据库 (create_all)...")
+
+        # 必须导入模型，否则 Base.metadata.create_all 不会创建任何表
+        import app.models  # noqa: F401
+
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 

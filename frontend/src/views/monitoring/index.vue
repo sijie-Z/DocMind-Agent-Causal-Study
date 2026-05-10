@@ -593,8 +593,9 @@ const loadData = async () => {
       // 获取通知服务状态失败
     }
 
-  } catch (error: any) {
-    message.error('加载监控数据失败：' + error.message)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    message.error('加载监控数据失败：' + msg)
   } finally {
     loading.value = false
   }

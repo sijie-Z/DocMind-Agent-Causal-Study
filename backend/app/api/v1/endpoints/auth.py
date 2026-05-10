@@ -25,6 +25,7 @@ from app.models.user import User
 from app.models.user_audit import UserLoginSession, UserActivityLog
 from app.services.auth_service import auth_service
 from app.services.audit_service import audit_service
+from app.schemas.auth import UpdateProfileRequest, ChangePasswordRequest
 from app.core.security import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -126,22 +127,9 @@ class TokenResponse(BaseModel):
     message: str = "操作成功"
     data: TokenData
 
-class UserInfoResponse(BaseModel):
-    id: int
-    username: str
-    email: str
-    full_name: Optional[str] = None
-    nickname: Optional[str] = None
-    phone: Optional[str] = None
-    avatar: Optional[str] = None
-    bio: Optional[str] = None
-    organization_id: Optional[int] = None
-    role: str
-    is_active: Optional[bool] = True
-    created_at: Optional[datetime] = None
-    preferences: Optional[str] = None
+from app.schemas.user import UserInfoResponse
 
-@router.get("/ensure-demo")
+@router.get("/ensure-demo", response_model=dict)
 async def ensure_demo():
     """创建或重置演示账号（仅开发模式开启）"""
     if not settings.ENABLE_ENSURE_DEMO_ENDPOINT:
@@ -368,25 +356,24 @@ async def register(
         if existing_email:
             raise ConflictError("邮箱已被使用")
         
-        # 创建新用户
-        user = await auth_service.create_user(
-            db,
-            username=register_data.username,
-            email=register_data.email,
-            password=register_data.password,
-            full_name=register_data.full_name,
-            organization_id=register_data.organization_id
-        )
-        
-        # 创建欢迎通知
-        welcome_notification = Notification(
-            user_id=user.id,
-            title="欢迎加入 DocMind 知识库",
-            content=f"亲爱的 {user.full_name or user.username}，欢迎使用 DocMind 企业级 RAG 知识库。您可以上传文档、构建知识库并开始智能问答。",
-            is_read=False
-        )
-        db.add(welcome_notification)
-        await db.commit()
+        # 创建新用户 + 欢迎通知（原子事务）
+        async with db.begin():
+            user = await auth_service.create_user(
+                db,
+                username=register_data.username,
+                email=register_data.email,
+                password=register_data.password,
+                full_name=register_data.full_name,
+                organization_id=register_data.organization_id
+            )
+
+            welcome_notification = Notification(
+                user_id=user.id,
+                title="欢迎加入 DocMind 知识库",
+                content=f"亲爱的 {user.full_name or user.username}，欢迎使用 DocMind 企业级 RAG 知识库。您可以上传文档、构建知识库并开始智能问答。",
+                is_read=False
+            )
+            db.add(welcome_notification)
         
         # 生成访问令牌 - 包含完整的用户信息和组织标签
         access_token = auth_service.create_access_token(
@@ -448,10 +435,10 @@ async def refresh_token(
             raise AuthenticationError("无效的刷新令牌")
         
         username = payload.get("sub")
-        user_id = payload.get("user_id")
-        
+        user_id = int(payload.get("user_id", 0))
+
         # 获取用户信息
-        user = await auth_service.get_user_by_id(db, user_id)  # pyright: ignore[reportArgumentType]
+        user = await auth_service.get_user_by_id(db, user_id)
         
         if not user or user.username != username:
             raise AuthenticationError("用户不存在")
@@ -485,7 +472,7 @@ async def refresh_token(
     except Exception as e:
         raise AppError("刷新令牌失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
 
-@router.post("/logout")
+@router.post("/logout", response_model=dict)
 async def logout(
     token: str = Depends(oauth2_scheme)
 ):
@@ -518,60 +505,46 @@ async def get_current_user_info(
 
 @router.put("/me", response_model=UserInfoWrapper)
 async def update_current_user(
-    full_name: Optional[str] = None,
-    email: Optional[EmailStr] = None,
+    body: UpdateProfileRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """更新当前用户信息"""
     try:
-        # 更新用户信息
-        updated_user = await auth_service.update_user(
-            db,
-            current_user.id,
-            full_name=full_name,
-            email=email
-        )
-        
-        user_info = UserInfoResponse(
-            id=updated_user.id,
-            username=updated_user.username,
-            email=updated_user.email,
-            full_name=updated_user.full_name,
-            nickname=updated_user.full_name,
-            phone=updated_user.phone,
-            avatar=updated_user.avatar_url,
-            bio=updated_user.bio,
-            organization_id=updated_user.organization_id,
-            role=updated_user.role,
-            is_active=updated_user.is_active,
-            created_at=updated_user.created_at
-        )
+        async with db.begin():
+            updated_user = await auth_service.update_user(
+                db,
+                current_user.id,
+                full_name=body.full_name,
+                email=body.email
+            )
+
+        user_info = UserInfoResponse.model_validate(updated_user)
         return UserInfoWrapper(data=user_info)
-        
+
     except Exception as e:
         raise AppError("更新用户信息失败", detail=str(e) if settings.EXPOSE_EXCEPTION_DETAIL else None)
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=dict)
 async def change_password(
-    old_password: str,
-    new_password: str,
+    body: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """修改密码"""
     try:
         # 验证旧密码
-        if not auth_service.verify_password(old_password, current_user.hashed_password):
+        if not auth_service.verify_password(body.old_password, current_user.hashed_password):
             raise ValidationError("旧密码错误")
-        
+
         # 更新密码
-        await auth_service.update_user_password(
-            db,
-            current_user.id,
-            new_password
-        )
-        
+        async with db.begin():
+            await auth_service.update_user_password(
+                db,
+                current_user.id,
+                body.new_password
+            )
+
         return {"message": "密码修改成功"}
 
     except ValidationError:

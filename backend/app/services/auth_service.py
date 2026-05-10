@@ -9,7 +9,7 @@ import jwt
 import bcrypt
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -22,11 +22,17 @@ from app.core.database import get_db
 from app.core.redis import RedisTools
 from app.models.user import User
 from app.services.organization_service import organization_service
+from app.exceptions import AccountLockedError
 
 logger = logging.getLogger(__name__)
 
 # JWT认证方案
 security = HTTPBearer()
+
+# Brute force protection constants
+_MAX_LOGIN_FAILURES = 5
+_LOCKOUT_DURATION_SECONDS = 900  # 15 minutes
+_FAILURE_KEY_PREFIX = "login_failures:"
 
 class AuthService:
     """认证服务类"""
@@ -169,9 +175,9 @@ class AuthService:
         user.token_organization_id = payload.get("organization_id")
         
         # 缓存用户信息
-        # 1. 先把对象转成字典，再转成 JSON 字符串
-        user_dict = jsonable_encoder(user.to_dict())
-        user_json_str = json.dumps(user_dict) 
+        from app.schemas.user import UserInfoResponse
+        user_dict = jsonable_encoder(UserInfoResponse.model_validate(user).model_dump())
+        user_json_str = json.dumps(user_dict)
         
         # 2. 存入 Redis (Redis 只吃字符串)
         await RedisTools.set_cache(
@@ -182,35 +188,72 @@ class AuthService:
         
         return user
     
+    async def _check_account_lockout(self, username: str) -> None:
+        """Check if account is locked due to too many failed login attempts."""
+        key = f"{_FAILURE_KEY_PREFIX}{username}"
+        failures = await RedisTools.get_cache(key)
+        if failures and int(failures) >= _MAX_LOGIN_FAILURES:
+            logger.warning(f"Account locked: {username} has {failures} failed attempts")
+            raise AccountLockedError(
+                message=f"Account temporarily locked due to too many failed attempts. Try again in {_LOCKOUT_DURATION_SECONDS // 60} minutes."
+            )
+
+    async def _record_login_failure(self, username: str) -> None:
+        """Increment login failure count in Redis with TTL."""
+        key = f"{_FAILURE_KEY_PREFIX}{username}"
+        count = await RedisTools.increment(key)
+        if count == 1:
+            # First failure — set TTL so the counter auto-expires
+            from app.core.redis import get_redis
+            try:
+                client = await get_redis()
+                await client.expire(key, _LOCKOUT_DURATION_SECONDS)
+            except Exception:
+                pass
+        logger.info(f"Login failure recorded for {username}: {count}/{_MAX_LOGIN_FAILURES}")
+
+    async def _clear_login_failures(self, username: str) -> None:
+        """Clear login failure count on successful authentication."""
+        key = f"{_FAILURE_KEY_PREFIX}{username}"
+        await RedisTools.delete_cache(key)
+
     async def authenticate_user(self, db: AsyncSession, username: str, password: str) -> Optional[User]:
-        """验证用户凭据"""
+        """验证用户凭据（含暴力破解防护）"""
         try:
+            # Check lockout before anything else
+            await self._check_account_lockout(username)
+
             logger.info(f"Attempting login for user: {username}")
-            
+
             # 查询用户
             result = await db.execute(select(User).where(User.username == username))
             user = result.scalar_one_or_none()
-            
+
             if user is None:
+                await self._record_login_failure(username)
                 logger.warning(f"Login failed: User {username} not found")
                 return None
-            
+
             # 验证密码
-            logger.info(f"User found: {user.username}, verifying password...")
-            is_valid = self.verify_password(password, user.hashed_password)  # pyright: ignore[reportArgumentType]
-            
+            is_valid = self.verify_password(password, user.hashed_password)
+
             if not is_valid:
+                await self._record_login_failure(username)
                 logger.warning(f"Login failed: Invalid password for user {username}")
                 return None
-            
+
             # 检查用户状态
-            if not user.is_active:  # pyright: ignore[reportGeneralTypeIssues]
+            if not user.is_active:
                 logger.warning(f"Login failed: User {username} is inactive")
                 return None
-            
+
+            # Success — clear failure count
+            await self._clear_login_failures(username)
             logger.info(f"Login success for user: {username}")
             return user
-            
+
+        except AccountLockedError:
+            raise
         except Exception as e:
             logger.exception(f"用户认证失败: {e}")
             raise
@@ -231,7 +274,7 @@ class AuthService:
             logger.error(f"密码验证失败: {str(e)}")
             return False
     
-    def require_role(self, required_role: str):
+    def require_role(self, required_role: str) -> Callable[..., Any]:
         """
         RBAC角色权限检查装饰器
         
@@ -242,7 +285,7 @@ class AuthService:
             依赖函数，用于FastAPI的Depends
         """
         async def role_checker(current_user: User = Depends(self.get_current_user)):
-            if current_user.role != required_role:  # pyright: ignore[reportGeneralTypeIssues]
+            if current_user.role != required_role:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"需要{required_role}权限"
@@ -251,11 +294,11 @@ class AuthService:
         
         return role_checker
     
-    def require_admin(self):
+    def require_admin(self) -> Callable[..., Any]:
         """需要管理员权限"""
         return self.require_role("admin")
-    
-    def require_user(self):
+
+    def require_user(self) -> Callable[..., Any]:
         """需要普通用户权限"""
         return self.require_role("user")
     
@@ -269,7 +312,7 @@ class AuthService:
             logger.error(f"密码哈希失败: {str(e)}")
             raise
     
-    async def blacklist_token(self, token: str):
+    async def blacklist_token(self, token: str) -> None:
         """Blacklist a token using its jti (JWT ID) for precise revocation."""
         try:
             payload = self.verify_token(token)
@@ -337,43 +380,25 @@ class AuthService:
         organization_id: Optional[int] = None,
         role: str = "user"
     ) -> User:
-        """创建用户"""
-        try:
-            # 哈希密码
-            hashed_password = self.hash_password(password)
-            
-            # 创建用户
-            user = User(
-                username=username,
-                email=email,
-                hashed_password=hashed_password,
-                full_name=full_name,
-                organization_id=organization_id,
-                role=role,
-                is_active=True
-            )
-            
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            
-            # # 自动创建私有组织标签
-            # private_org = await organization_service.create_private_organization(db, user)
-            
-            # # 将用户添加到私有组织
-            # await organization_service.add_user_to_organization(db, user, private_org)
-            
-            # # 更新用户的主组织
-            # user.organization_id = private_org.id
-            # await db.commit()
-            
-            logger.info(f"用户创建成功: {username}")
-            return user
-            
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"用户创建失败: {str(e)}")
-            raise
+        """创建用户 — 不负责 commit，由调用方管理事务"""
+        hashed_password = self.hash_password(password)
+
+        user = User(
+            username=username,
+            email=email,
+            hashed_password=hashed_password,
+            full_name=full_name,
+            organization_id=organization_id,
+            role=role,
+            is_active=True
+        )
+
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+
+        logger.info(f"用户创建成功: {username}")
+        return user
     
     async def update_user(
         self,
@@ -384,65 +409,47 @@ class AuthService:
         full_name: Optional[str] = None,
         organization_id: Optional[int] = None
     ) -> User:
-        """更新用户信息"""
-        try:
-            # 获取用户
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
-            
-            if not user:
-                raise ValueError("用户不存在")
-            
-            # 更新字段
-            if username is not None:
-                user.username = username  # pyright: ignore[reportAttributeAccessIssue]
-            if email is not None:
-                user.email = email  # pyright: ignore[reportAttributeAccessIssue]
-            if full_name is not None:
-                user.full_name = full_name  # pyright: ignore[reportAttributeAccessIssue]
-            if organization_id is not None:
-                user.organization_id = organization_id  # pyright: ignore[reportAttributeAccessIssue]
-            
-            user.updated_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
-            
-            await db.commit()
-            await db.refresh(user)
-            
-            logger.info(f"用户信息更新成功: {user.username}")
-            return user
-            
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"用户信息更新失败: {str(e)}")
-            raise
+        """更新用户信息 — 不负责 commit，由调用方管理事务"""
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise ValueError("用户不存在")
+
+        if username is not None:
+            user.username = username
+        if email is not None:
+            user.email = email
+        if full_name is not None:
+            user.full_name = full_name
+        if organization_id is not None:
+            user.organization_id = organization_id
+
+        user.updated_at = datetime.now(timezone.utc)
+
+        await db.flush()
+        await db.refresh(user)
+
+        logger.info(f"用户信息更新成功: {user.username}")
+        return user
     
     async def update_user_password(self, db: AsyncSession, user_id: int, new_password: str) -> User:
-        """更新用户密码"""
-        try:
-            # 获取用户
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
-            
-            if not user:
-                raise ValueError("用户不存在")
-            
-            # 哈希新密码
-            hashed_password = self.hash_password(new_password)
-            
-            # 更新密码
-            user.hashed_password = hashed_password  # pyright: ignore[reportAttributeAccessIssue]
-            user.updated_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
-            
-            await db.commit()
-            await db.refresh(user)
-            
-            logger.info(f"用户密码更新成功: {user.username}")
-            return user
-            
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"用户密码更新失败: {str(e)}")
-            raise
+        """更新用户密码 — 不负责 commit，由调用方管理事务"""
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise ValueError("用户不存在")
+
+        hashed_password = self.hash_password(new_password)
+        user.hashed_password = hashed_password
+        user.updated_at = datetime.now(timezone.utc)
+
+        await db.flush()
+        await db.refresh(user)
+
+        logger.info(f"用户密码更新成功: {user.username}")
+        return user
 
 # 👇👇👇 关键：创建单例实例
 auth_service = AuthService()

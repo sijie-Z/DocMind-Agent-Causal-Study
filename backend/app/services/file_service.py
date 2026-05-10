@@ -19,8 +19,31 @@ from app.core.database import AsyncSessionLocal
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.services.document_parser import DocumentParser
 from app.core.minio_client import minio_client
+from app.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
+
+# MIME type → allowed extensions mapping (magic-byte validated)
+_ALLOWED_MIME_TYPES = {
+    "application/pdf": {".pdf"},
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {".docx"},
+    "application/msword": {".doc"},
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {".xlsx"},
+    "application/vnd.ms-excel": {".xls"},
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": {".pptx"},
+    "application/vnd.ms-powerpoint": {".ppt"},
+    "text/plain": {".txt", ".md", ".csv"},
+    "text/markdown": {".md"},
+    "text/csv": {".csv"},
+    "application/json": {".json"},
+    "text/html": {".html", ".htm"},
+    "image/jpeg": {".jpg", ".jpeg"},
+    "image/png": {".png"},
+    "image/gif": {".gif"},
+    "image/webp": {".webp"},
+    "image/bmp": {".bmp"},
+    "image/tiff": {".tiff", ".tif"},
+}
 
 
 class FileUploadService:
@@ -69,6 +92,44 @@ class FileUploadService:
                 detail=f"文件过大。最大支持 {max_size / (1024*1024):.0f}MB"
             )
     
+    def _validate_mime_type(self, content: bytes, filename: str) -> None:
+        """Validate file content MIME type against magic bytes.
+
+        Raises ValidationError if the detected MIME type doesn't match the file extension
+        or is not in the allowed list.
+        """
+        try:
+            import filetype
+            kind = filetype.guess(content)
+            if kind is None:
+                # filetype can't detect — fall back to allowing text-like extensions
+                ext = Path(filename).suffix.lower()
+                text_extensions = {".txt", ".md", ".csv", ".json", ".xml", ".html"}
+                if ext not in text_extensions:
+                    raise ValidationError(
+                        message=f"Unable to verify file type for '{filename}'. "
+                        f"If this is a text file, rename to .txt or .md."
+                    )
+                return
+
+            detected_mime = kind.mime
+            ext = Path(filename).suffix.lower()
+
+            allowed_exts = _ALLOWED_MIME_TYPES.get(detected_mime)
+            if allowed_exts is None:
+                raise ValidationError(
+                    message=f"File content type '{detected_mime}' is not allowed."
+                )
+            if ext not in allowed_exts:
+                raise ValidationError(
+                    message=f"File extension '{ext}' doesn't match detected type '{detected_mime}'. "
+                    f"Expected one of: {', '.join(sorted(allowed_exts))}"
+                )
+        except (ValidationError):
+            raise
+        except Exception as e:
+            logger.warning(f"MIME type validation error (allowing file): {e}")
+
     def _generate_file_hash(self, content: bytes) -> str:
         """
         生成文件内容的哈希值
@@ -181,9 +242,10 @@ class FileUploadService:
             # 读取文件内容
             content = await file.read()
             file_size = len(content)
-            
-            # 验证文件
+
+            # 验证文件（扩展名 + 大小 + MIME type）
             self._validate_file(filename, file_size)
+            self._validate_mime_type(content, filename)
             
             # 生成文件哈希
             file_hash = self._generate_file_hash(content)

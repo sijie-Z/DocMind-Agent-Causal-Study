@@ -80,8 +80,18 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <div class="flex-1 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
-                  {{ truncateResult(event.content) }}
+                <div class="flex-1">
+                  <div class="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2 whitespace-pre-wrap"
+                    :class="{ 'max-h-40 overflow-y-auto': !expandedEvents[eIdx] }">
+                    {{ expandedEvents[eIdx] ? event.content : truncateResult(event.content) }}
+                  </div>
+                  <button
+                    v-if="isResultLong(event.content)"
+                    @click="toggleExpand(eIdx)"
+                    class="mt-1 text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                  >
+                    {{ expandedEvents[eIdx] ? '收起' : '展开' }}
+                  </button>
                 </div>
               </div>
 
@@ -144,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, computed } from 'vue'
 import { NTag, NButton } from 'naive-ui'
 import Markdown from '@/components/common/Markdown.vue'
 import { agentApi } from '@/api/agent'
@@ -170,6 +180,7 @@ const inputMessage = ref('')
 const isLoading = ref(false)
 const toolCount = ref(0)
 const messagesContainer = ref<HTMLElement>()
+const expandedEvents = ref<Record<number, boolean>>({})
 
 const suggestions = [
   'Search for company policies',
@@ -190,6 +201,12 @@ const truncateResult = (text: string) => {
   return text.length > 300 ? text.slice(0, 300) + '...' : text
 }
 
+const isResultLong = (text: string) => !!text && text.length > 300
+
+const toggleExpand = (eventKey: number) => {
+  expandedEvents.value[eventKey] = !expandedEvents.value[eventKey]
+}
+
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -201,6 +218,7 @@ const scrollToBottom = () => {
 const clearMessages = () => {
   messages.value = []
   toolCount.value = 0
+  expandedEvents.value = {}
 }
 
 const sendMessage = async (text?: string) => {
@@ -253,10 +271,11 @@ const sendMessage = async (text?: string) => {
       }
       scrollToBottom()
     })
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errorMsg = e instanceof Error ? e.message : String(e)
     const msg = messages.value[assistantIdx]
     if (msg) {
-      msg.content = `Error: ${e.message || 'Failed to connect to agent'}`
+      msg.content = `Error: ${errorMsg || 'Failed to connect to agent'}`
       msg.loading = false
     }
   } finally {

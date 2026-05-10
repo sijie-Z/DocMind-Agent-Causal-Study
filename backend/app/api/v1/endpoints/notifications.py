@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, Body, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, desc, func
 from pydantic import BaseModel, ConfigDict
@@ -13,6 +13,7 @@ from app.models.notification import Notification
 from app.core.security import get_current_user
 from app.services.auth_service import auth_service
 from app.core.notification_ws import notification_ws_manager
+from app.exceptions import NotFoundError
 
 router = APIRouter()
 
@@ -197,7 +198,7 @@ async def get_notification_summary(
         "by_type": by_type,
     }
 
-@router.put("/{notification_id}/read", summary="标记通知为已读")
+@router.put("/{notification_id}/read", response_model=dict, summary="标记通知为已读")
 async def mark_as_read(
     notification_id: int,
     current_user: User = Depends(get_current_user),
@@ -214,7 +215,7 @@ async def mark_as_read(
     notification = result.scalar_one_or_none()
     
     if not notification:
-        raise HTTPException(status_code=404, detail="通知不存在")
+        raise NotFoundError(detail="通知不存在")
         
     await db.execute(
         update(Notification)
@@ -227,7 +228,7 @@ async def mark_as_read(
     await db.commit()
     return {"message": "标记成功"}
 
-@router.put("/read-all", summary="全部标记为已读")
+@router.put("/read-all", response_model=dict, summary="全部标记为已读")
 async def mark_all_as_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -244,7 +245,7 @@ async def mark_all_as_read(
     await db.commit()
     return {"message": "全部已读", "updated": int(result.rowcount or 0)}
 
-@router.delete("/{notification_id}", summary="删除单条通知")
+@router.delete("/{notification_id}", response_model=dict, summary="删除单条通知")
 async def delete_notification(
     notification_id: int,
     current_user: User = Depends(get_current_user),
@@ -257,11 +258,11 @@ async def delete_notification(
         )
     )
     if not result.rowcount:
-        raise HTTPException(status_code=404, detail="通知不存在")
+        raise NotFoundError(detail="通知不存在")
     await db.commit()
     return {"message": "删除成功"}
 
-@router.delete("/", summary="批量删除通知")
+@router.delete("/", response_model=dict, summary="批量删除通知")
 async def batch_delete_notifications(
     payload: NotificationBatchDeleteRequest = Body(...),
     current_user: User = Depends(get_current_user),

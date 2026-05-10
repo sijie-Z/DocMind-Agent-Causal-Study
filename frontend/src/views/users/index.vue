@@ -177,6 +177,11 @@ import {
 import type { DataTableColumns, FormRules, FormInst } from 'naive-ui'
 import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from '@/api/user'
 
+/** Safely extract error message from unknown error */
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 // 类型定义
 // 找到约 117 行左右
 interface User {
@@ -372,8 +377,8 @@ const loadUsers = async () => {
         users.value = []
         pagination.itemCount = 0
     }
-  } catch (err: any) {
-    message.error('加载失败: ' + err.message)
+  } catch (err: unknown) {
+    message.error('加载失败: ' + getErrorMessage(err))
   } finally {
     loading.value = false
   }
@@ -421,8 +426,8 @@ const saveUser = async () => {
     }
     closeCreateModal()
     loadUsers()
-  } catch (err: any) {
-    message.error(err.message || t('common.failed'))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err) || t('common.failed'))
   } finally {
     saving.value = false
   }
@@ -436,8 +441,8 @@ const resetPassword = async () => {
     await resetUserPassword(resettingUserId.value, resetPasswordForm.value.newPassword)
     message.success(t('common.success'))
     showResetPasswordModal.value = false
-  } catch (err: any) {
-    message.error(err.message || t('common.failed'))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err) || t('common.failed'))
   } finally {
     resettingPassword.value = false
   }
@@ -448,8 +453,8 @@ const handleDelete = async (id: number) => {
     await deleteUser(id)
     message.success(t('common.success'))
     loadUsers()
-  } catch (err: any) {
-    message.error(err.message || t('common.failed'))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err) || t('common.failed'))
   }
 }
 

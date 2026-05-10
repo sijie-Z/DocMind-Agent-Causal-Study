@@ -4,7 +4,7 @@
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func, and_
 
@@ -25,10 +25,12 @@ from app.schemas.knowledge import (
     KnowledgeStatsResponse,
     KnowledgeBuildResponse,
     SearchSuggestionResponse,
+    SimilarityResponse,
     BatchDeleteRequest
 )
 from app.api.v1.endpoints.notifications import create_notification
 from app.services.audit_service import audit_service
+from app.exceptions import NotFoundError, ValidationError, AuthorizationError, ConflictError, AppError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -108,7 +110,7 @@ async def list_knowledge_bases(
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取知识库列表失败: {str(e)}")
+        raise AppError(f"获取知识库列表失败: {str(e)}")
 
 
 @router.post("/search", response_model=KnowledgeSearchResponse, dependencies=[Depends(permission_required([PermissionType.SEARCH_KNOWLEDGE_BASE], organization_id_param='organization_id'))])
@@ -163,10 +165,10 @@ async def search_knowledge(
         
     except Exception as e:
         logger.error(f"搜索失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"搜索知识库失败: {str(e)}")
+        raise AppError(f"搜索知识库失败: {str(e)}")
 
 
-@router.get("/suggestions", dependencies=[Depends(permission_required([PermissionType.SEARCH_KNOWLEDGE_BASE], organization_id_param='organization_id'))])
+@router.get("/suggestions", response_model=SearchSuggestionResponse, dependencies=[Depends(permission_required([PermissionType.SEARCH_KNOWLEDGE_BASE], organization_id_param='organization_id'))])
 async def get_search_suggestions(
     q: str = Query(..., min_length=2, description="搜索查询"),
     organization_id: int = Query(..., description="组织ID"),
@@ -189,10 +191,10 @@ async def get_search_suggestions(
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取搜索建议失败: {str(e)}")
+        raise AppError(f"获取搜索建议失败: {str(e)}")
 
 
-@router.get("/stats/{organization_id}", dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE], organization_id_param='organization_id'))])
+@router.get("/stats/{organization_id}", response_model=dict, dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE], organization_id_param='organization_id'))])
 async def get_knowledge_stats(
     organization_id: int,
     current_user: User = Depends(get_current_user)
@@ -213,10 +215,10 @@ async def get_knowledge_stats(
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取知识库统计失败: {str(e)}")
+        raise AppError(f"获取知识库统计失败: {str(e)}")
 
 
-@router.get("/graph/stats", dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE]))])
+@router.get("/graph/stats", response_model=dict, dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE]))])
 async def get_graph_rag_stats(
     current_user: User = Depends(get_current_user)
 ):
@@ -240,10 +242,10 @@ async def get_graph_rag_stats(
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取知识图谱统计失败: {str(e)}")
+        raise AppError(f"获取知识图谱统计失败: {str(e)}")
 
 
-@router.delete("/graph/clear", dependencies=[Depends(permission_required([PermissionType.DOCUMENT_DELETE]))])
+@router.delete("/graph/clear", response_model=dict, dependencies=[Depends(permission_required([PermissionType.DOCUMENT_DELETE]))])
 async def clear_graph_rag(
     current_user: User = Depends(get_current_user)
 ):
@@ -260,7 +262,7 @@ async def clear_graph_rag(
             "message": "知识图谱已清空"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"清空知识图谱失败: {str(e)}")
+        raise AppError(f"清空知识图谱失败: {str(e)}")
 
 
 @router.post("/rebuild/{document_id}", response_model=KnowledgeBuildResponse, dependencies=[Depends(permission_required([PermissionType.REBUILD_DOCUMENT_INDEX], organization_id_param='document_id'))])
@@ -277,7 +279,7 @@ async def rebuild_document_knowledge(
         doc = result.scalar_one_or_none()
 
         if not doc:
-            raise HTTPException(status_code=404, detail="文档不存在")
+            raise NotFoundError("文档不存在")
 
         # 1. 仅从 ES 删除该文档的索引
         await knowledge_service.delete_es_by_document_id(document_id)
@@ -319,7 +321,7 @@ async def rebuild_document_knowledge(
                 target_id=str(document_id),
             )
 
-            raise HTTPException(status_code=500, detail=f"发送处理任务失败: {str(e)}")
+            raise AppError(f"发送处理任务失败: {str(e)}")
 
         # 3. 将文档状态置为 PENDING，Worker 处理后会更新为 INDEXED/FAILED
         doc.status = DocumentStatus.PENDING
@@ -344,14 +346,14 @@ async def rebuild_document_knowledge(
             build_time=0.0
         )
 
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
         logger.error(f"重建知识库失败: {e}")
-        raise HTTPException(status_code=500, detail=f"重建知识库失败: {str(e)}")
+        raise AppError(f"重建知识库失败: {str(e)}")
 
 
-@router.get("/jobs", dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE]))])
+@router.get("/jobs", response_model=dict, dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE]))])
 async def list_knowledge_jobs(
     status: Optional[str] = None,
     page: int = 1,
@@ -367,7 +369,7 @@ async def list_knowledge_jobs(
         try:
             conditions.append(KnowledgeProcessingJob.status == KnowledgeJobStatus(status))
         except Exception:
-            raise HTTPException(status_code=400, detail="无效的任务状态")
+            raise ValidationError("无效的任务状态")
 
     total_result = await db.execute(select(func.count(KnowledgeProcessingJob.id)).where(*conditions))
     total = total_result.scalar() or 0
@@ -409,7 +411,7 @@ async def list_knowledge_jobs(
     }
 
 
-@router.get("/{document_id}/events", dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE]))])
+@router.get("/{document_id}/events", response_model=dict, dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE]))])
 async def get_document_job_events(
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -441,7 +443,7 @@ async def get_document_job_events(
     }
 
 
-@router.delete("/document/{document_id}", dependencies=[Depends(permission_required([PermissionType.DOCUMENT_DELETE], organization_id_param='document_id'))])
+@router.delete("/document/{document_id}", response_model=dict, dependencies=[Depends(permission_required([PermissionType.DOCUMENT_DELETE], organization_id_param='document_id'))])
 async def delete_knowledge_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -456,13 +458,13 @@ async def delete_knowledge_document(
         doc = result.scalar_one_or_none()
         
         if not doc:
-            raise HTTPException(status_code=404, detail="文档不存在")
+            raise NotFoundError("文档不存在")
             
         # 3. 调用 service 彻底删除
         success = await knowledge_service.delete_knowledge(document_id, doc.organization_id)
 
         if not success:
-            raise HTTPException(status_code=500, detail="删除失败")
+            raise AppError("删除失败")
 
         await audit_service.log_activity(
             user_id=current_user.id,
@@ -475,13 +477,13 @@ async def delete_knowledge_document(
 
         return {"success": True, "message": "删除成功"}
         
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+        raise AppError(f"删除失败: {str(e)}")
 
 
-@router.post("/batch-delete", dependencies=[Depends(permission_required([PermissionType.DOCUMENT_DELETE]))])
+@router.post("/batch-delete", response_model=dict, dependencies=[Depends(permission_required([PermissionType.DOCUMENT_DELETE]))])
 async def batch_delete_documents(
     request: BatchDeleteRequest,
     current_user: User = Depends(get_current_user),
@@ -507,13 +509,13 @@ async def batch_delete_documents(
 
         return results
         
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}")
+        raise AppError(f"批量删除失败: {str(e)}")
 
 
-@router.post("/similarity", dependencies=[Depends(permission_required([PermissionType.USE_EMBEDDING_SERVICE]))])
+@router.post("/similarity", response_model=SimilarityResponse, dependencies=[Depends(permission_required([PermissionType.USE_EMBEDDING_SERVICE]))])
 async def calculate_text_similarity(
     text1: str = Query(..., description="文本1"),
     text2: str = Query(..., description="文本2"),
@@ -531,7 +533,7 @@ async def calculate_text_similarity(
         embeddings = await embedding_service.get_embeddings([text1, text2])
         
         if len(embeddings) < 2:
-            raise HTTPException(status_code=500, detail="创建向量嵌入失败")
+            raise AppError("创建向量嵌入失败")
         
         # 计算余弦相似度
         import numpy as np
@@ -550,10 +552,10 @@ async def calculate_text_similarity(
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"计算文本相似度失败: {str(e)}")
+        raise AppError(f"计算文本相似度失败: {str(e)}")
 
 
-@router.get("/health", dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
+@router.get("/health", response_model=dict, dependencies=[Depends(permission_required([PermissionType.VIEW_SYSTEM_HEALTH]))])
 async def check_knowledge_base_health(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -584,7 +586,7 @@ async def check_knowledge_base_health(
         }
 
 
-@router.get("/rag-stats", summary="获取RAG检索统计", dependencies=[Depends(get_current_user)])
+@router.get("/rag-stats", response_model=dict, summary="获取RAG检索统计", dependencies=[Depends(get_current_user)])
 async def get_rag_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -643,4 +645,82 @@ async def get_rag_stats(
             "top_keywords": [],
             "hit_rate_trend_7d": [0] * 7
         }
+
+
+@router.get("/graph", response_model=dict, dependencies=[Depends(permission_required([PermissionType.VIEW_KNOWLEDGE_BASE]))])
+async def get_knowledge_graph(
+    query: Optional[str] = None,
+    max_nodes: int = Query(default=50, ge=5, le=200),
+    organization_id: int = 1,
+    current_user: User = Depends(get_current_user),
+):
+    """获取知识图谱数据，用于前端可视化。"""
+    from app.services.graph_rag_service import graph_rag_service
+
+    try:
+        if query:
+            # Search for specific entities
+            results = graph_rag_service.search_graph(query, max_hops=2)
+        else:
+            # Return all entities (up to max_nodes)
+            results = []
+            for key, node in list(graph_rag_service.graph.items())[:max_nodes]:
+                results.append({
+                    "entity": node.get("entity_name", key),
+                    "type": node.get("entity_type", "UNKNOWN"),
+                    "description": node.get("description", ""),
+                    "occurrences": node.get("occurrences", 0),
+                    "relationships": node.get("relationships", [])[:10],
+                })
+
+        # Build graph data for visualization
+        nodes = []
+        edges = []
+        node_ids = set()
+
+        for ent in results:
+            entity_name = ent.get("entity", "")
+            if not entity_name or entity_name in node_ids:
+                continue
+            node_ids.add(entity_name)
+            nodes.append({
+                "id": entity_name,
+                "type": ent.get("type", "UNKNOWN"),
+                "description": ent.get("description", ""),
+                "occurrences": ent.get("occurrences", 1),
+            })
+
+            for rel in ent.get("relationships", []):
+                target_key = rel.get("target", "")
+                # Find target entity name
+                target_name = None
+                for k, v in graph_rag_service.graph.items():
+                    if k == target_key:
+                        target_name = v.get("entity_name", target_key)
+                        break
+                if target_name and target_name not in node_ids:
+                    node_ids.add(target_name)
+                    nodes.append({
+                        "id": target_name,
+                        "type": "UNKNOWN",
+                        "description": "",
+                        "occurrences": 1,
+                    })
+                if target_name:
+                    edges.append({
+                        "source": entity_name,
+                        "target": target_name,
+                        "relation": rel.get("relation", "RELATED_TO"),
+                    })
+
+        analytics = graph_rag_service.get_analytics()
+
+        return {
+            "nodes": nodes[:max_nodes],
+            "edges": edges,
+            "analytics": analytics,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get knowledge graph: {e}")
+        return {"nodes": [], "edges": [], "analytics": {}}
         

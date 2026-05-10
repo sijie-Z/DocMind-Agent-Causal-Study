@@ -5,8 +5,8 @@
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -14,43 +14,42 @@ from app.core.database import Base
 class User(Base):
     """用户模型"""
     __tablename__ = "users"
-    
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    email = Column(String(100), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(100), nullable=True)
-    
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    full_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
     # 组织关联
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
-    
-    # 👇👇👇 关键点：必须加 foreign_keys
-    organization = relationship(
-        "Organization", 
+    organization_id: Mapped[Optional[int]] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+
+    organization: Mapped[Optional["Organization"]] = relationship(
+        "Organization",
         back_populates="users",
         foreign_keys=[organization_id],
         lazy="selectin"
     )
-    
+
     # 用户角色和状态
-    role = Column(String(20), default="user", nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_superuser = Column(Boolean, default=False, nullable=False)
-    
+    role: Mapped[str] = mapped_column(String(20), default="user")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # 时间戳
-    created_at = Column(DateTime, default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
-    last_login_at = Column(DateTime, nullable=True)
-    
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # 用户配置
-    avatar_url = Column(String(500), nullable=True)
-    phone = Column(String(20), nullable=True)
-    department = Column(String(100), nullable=True)
-    position = Column(String(100), nullable=True)
-    preferences = Column(Text, nullable=True)
-    
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    department: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    position: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    preferences: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # API Key
-    api_key = Column(String(100), unique=True, index=True, nullable=True)
+    api_key: Mapped[Optional[str]] = mapped_column(String(100), unique=True, index=True, nullable=True)
     
     # 关联关系
     documents = relationship("Document", back_populates="uploader", lazy="selectin")
@@ -77,26 +76,6 @@ class User(Base):
         overlaps="user_organization_roles", # 消除警告
         lazy="selectin"
     )
-    
-    def to_dict(self) -> dict:
-        return {
-            "id": self.id,
-            "username": self.username,
-            "email": self.email,
-            "full_name": self.full_name,
-            "organization_id": self.organization_id,
-            "role": self.role,
-            "is_active": self.is_active,
-            "is_superuser": self.is_superuser,
-            "created_at": self.created_at.isoformat() if self.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,  # pyright: ignore[reportGeneralTypeIssues]
-            "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,  # pyright: ignore[reportGeneralTypeIssues]
-            "avatar_url": self.avatar_url,
-            "phone": self.phone,
-            "department": self.department,
-            "position": self.position,
-            "preferences": self.preferences
-        }
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"

@@ -1,25 +1,29 @@
-# -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.orm import relationship
+"""
+通知模型
+"""
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.core.database import Base
+
 
 class Notification(Base):
     """系统通知模型"""
     __tablename__ = "notifications"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=False)
-    type = Column(String(50), default="system", nullable=False)  # system, document, chat
-    is_read = Column(Boolean, default=False, nullable=False)
-    target_route = Column(String(100), nullable=True)
-    target_id = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=func.now(), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    content: Mapped[str] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(String(50), default="system")  # system, document, chat
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    target_route: Mapped[Optional[str]] = mapped_column(String(100))
+    target_id: Mapped[Optional[str]] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
-    # 关联
-    user = relationship("User", backref="notifications")
+    user: Mapped[Optional["User"]] = relationship("User", backref="notifications")
 
     def to_dict(self):
         return {

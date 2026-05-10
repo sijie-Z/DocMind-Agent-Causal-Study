@@ -184,8 +184,9 @@ async def summarize_document(
         return f"Document: {filename}\nContent preview: {full_text[:1000]}..."
 
     try:
+        from app.core.config import settings
         resp = await pipeline.openai_client.chat.completions.create(
-            model="deepseek-chat",
+            model=settings.DEEPSEEK_MODEL,
             messages=[
                 {"role": "system", "content": "你是文档摘要专家。请用中文生成结构化摘要。"},
                 {"role": "user", "content": f"请为以下文档生成摘要，包含：1)主题 2)关键要点(3-5条) 3)结论\n\n文档：{full_text[:6000]}"},

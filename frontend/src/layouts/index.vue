@@ -1,9 +1,20 @@
 <template>
   <div class="h-screen flex bg-gray-50 dark:bg-gray-950">
+    <!-- 移动端遮罩层 -->
+    <div
+      v-if="mobileMenuOpen"
+      class="fixed inset-0 bg-black/40 z-40 md:hidden"
+      @click="mobileMenuOpen = false"
+    />
+
     <!-- 侧边栏 -->
-    <div 
+    <div
       class="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-all duration-300"
-      :class="appStore.sidebarCollapsed ? 'w-20' : 'w-64'"
+      :class="[
+        appStore.sidebarCollapsed ? 'w-20' : 'w-64',
+        'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50',
+        mobileMenuOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
+      ]"
     >
       <!-- Logo：DocMind 图标 + 名称 -->
       <div class="h-16 flex items-center px-4 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm overflow-hidden whitespace-nowrap">
@@ -29,8 +40,8 @@
         />
       </nav>
       
-      <!-- 底部折叠按钮 -->
-      <div class="p-4 border-t border-gray-100 dark:border-gray-800 flex justify-center">
+      <!-- 底部折叠按钮（桌面端） -->
+      <div class="p-4 border-t border-gray-100 dark:border-gray-800 justify-center hidden md:flex">
         <n-button quaternary circle @click="appStore.toggleSidebar">
           <template #icon>
             <n-icon size="20">
@@ -47,7 +58,7 @@
           <n-avatar
             round
             :size="32"
-            :src="userInfo?.avatar || '/avatar.png'"
+            :src="userInfo?.avatar_url || userInfo?.avatar || '/avatar.png'"
           >
             {{ userInfo?.username?.charAt(0).toUpperCase() }}
           </n-avatar>
@@ -78,6 +89,12 @@
       <!-- 顶部栏 -->
       <header class="h-14 md:h-16 bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-6 sticky top-0 z-20">
         <div class="flex items-center gap-3 min-w-0">
+          <!-- 移动端汉堡菜单 -->
+          <n-button text size="small" class="md:hidden" @click="mobileMenuOpen = !mobileMenuOpen">
+            <template #icon>
+              <n-icon size="20"><MenuOutline /></n-icon>
+            </template>
+          </n-button>
           <span class="text-xs font-medium text-slate-400 dark:text-slate-500 hidden sm:inline">DocMind</span>
           <span class="text-slate-300 dark:text-slate-600 hidden sm:inline">/</span>
           <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100 truncate">
@@ -220,7 +237,8 @@ import {
   DocumentTextOutline,
   InformationCircleOutline,
   HelpCircleOutline,
-  HardwareChipOutline
+  HardwareChipOutline,
+  MenuOutline,
 } from '@vicons/ionicons5'
 
 const route = useRoute()
@@ -230,6 +248,7 @@ const appStore = useAppStore()
 const userStore = useUserStore()
 
 const searchValue = ref('')
+const mobileMenuOpen = ref(false)
 
 const userInfo = computed(() => userStore.userInfo)
 const currentOrgId = computed(() => userStore.currentOrgId)
@@ -440,6 +459,7 @@ const userMenuOptions = computed<DropdownOption[]>(() => [
 const message = useDedupedMessage()
 
 const handleMenuSelect = async (key: string) => {
+  mobileMenuOpen.value = false
   try {
     await router.push({ name: key })
   } catch {

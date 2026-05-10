@@ -103,11 +103,32 @@ async def lifespan(app: FastAPI):
 
 
 # 创建FastAPI应用
+OPENAPI_TAGS = [
+    {"name": "认证", "description": "用户注册、登录、Token 管理、密码修改"},
+    {"name": "用户管理", "description": "用户 CRUD、个人资料、会话管理、审计日志"},
+    {"name": "文件管理", "description": "文件上传、下载、MinIO 存储"},
+    {"name": "文档管理(RAG)", "description": "文档解析、向量化、知识库构建"},
+    {"name": "聊天", "description": "会话管理、消息发送、WebSocket/SSE 流式问答"},
+    {"name": "知识库", "description": "知识库 CRUD、检索、统计"},
+    {"name": "组织管理", "description": "组织 CRUD、成员管理、角色权限"},
+    {"name": "系统监控", "description": "性能指标、健康检查、告警、RAG 评估"},
+    {"name": "通知管理", "description": "通知 CRUD、已读标记、WebSocket 推送"},
+    {"name": "提示词管理", "description": "提示词模板 CRUD"},
+    {"name": "操作手册", "description": "系统操作手册管理"},
+    {"name": "Agent工作流", "description": "工作流 CRUD、执行、调试"},
+    {"name": "Agent记忆", "description": "短期/长期/工作记忆管理"},
+    {"name": "智能Agent", "description": "ReAct Agent 对话、工具调用、技能学习"},
+]
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="基于DeepSeek的AI知识库系统，支持文档管理、知识检索和智能问答",
-    lifespan=lifespan
+    description="基于 DeepSeek 的企业级 RAG 知识库系统，支持文档管理、混合检索、流式问答、自主 Agent",
+    lifespan=lifespan,
+    openapi_tags=OPENAPI_TAGS,
+    contact={"name": "DocMind Team", "url": "https://github.com/docmind"},
+    license_info={"name": "MIT"},
+    openapi_url="/api/v1/openapi.json",
 )
 
 # 配置CORS
@@ -258,7 +279,7 @@ async def system_info():
 
 @app.get("/metrics", response_class=PlainTextResponse)
 async def prometheus_metrics():
-    """Prometheus 指标导出"""
+    """Prometheus 指标导出 — HTTP + WebSocket + RAG 管线指标"""
     http_metrics = await metrics_collector.get_prometheus_text()
     ws_stats = notification_ws_manager.get_stats()
 
@@ -286,7 +307,11 @@ async def prometheus_metrics():
         f"app_ws_send_fail_total {ws_stats['send_fail_total']}",
     ]
 
-    return http_metrics + "\n" + "\n".join(ws_lines) + "\n"
+    # RAG pipeline metrics (prometheus_client registry)
+    from app.core.prometheus import get_prometheus_metrics
+    rag_metrics = get_prometheus_metrics().decode("utf-8")
+
+    return http_metrics + "\n" + "\n".join(ws_lines) + "\n" + rag_metrics
 
 
 # OpenTelemetry 链路追踪（通过 ENABLE_TRACING 环境变量启用）
@@ -306,19 +331,30 @@ try:
 except Exception as e:
     logger.warning(f"静态文件挂载失败: {e}")
 
-@app.get("/paicongming/{file_path:path}")
+@app.get("/files/{file_path:path}")
 async def get_minio_file(file_path: str):
     """
-    ⚡ 资源代理：允许浏览器直接通过后端 8000 端口访问 MinIO 文件
-    例如：http://localhost:8000/paicongming/avatars/1.png
+    资源代理：允许浏览器通过后端访问 MinIO 文件
+    例如：http://localhost:8000/files/avatars/1.png
     """
+    # 路径穿越防护
+    import os
+    normalized = os.path.normpath(file_path)
+    if normalized.startswith("..") or ".." in file_path:
+        raise HTTPException(status_code=400, detail="无效的文件路径")
+
     try:
-        # file_path 会拿到 "avatars/1.png"
-        response = minio_client.get_object(file_path)
-        return StreamingResponse(
-            response, 
-            media_type="image/png" if file_path.endswith(".png") else "image/jpeg"
-        )
+        response = minio_client.get_object(normalized)
+        media_type = "application/octet-stream"
+        if normalized.endswith(".png"):
+            media_type = "image/png"
+        elif normalized.endswith((".jpg", ".jpeg")):
+            media_type = "image/jpeg"
+        elif normalized.endswith(".gif"):
+            media_type = "image/gif"
+        elif normalized.endswith(".webp"):
+            media_type = "image/webp"
+        return StreamingResponse(response, media_type=media_type)
     except Exception:
         raise HTTPException(status_code=404)
 

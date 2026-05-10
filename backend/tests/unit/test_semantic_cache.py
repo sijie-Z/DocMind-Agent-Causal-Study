@@ -2,7 +2,7 @@
 """SemanticCache 纯函数测试（不依赖 Redis）。"""
 import pytest
 import numpy as np
-from app.services.semantic_cache import SemanticCache
+from app.rag.cache import SemanticCache
 
 
 @pytest.fixture

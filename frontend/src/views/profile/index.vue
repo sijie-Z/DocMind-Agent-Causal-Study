@@ -16,7 +16,7 @@
                 <n-avatar
                   round
                   :size="120"
-                  :src="userInfo.avatar || undefined"
+                  :src="userInfo.avatar_url || userInfo.avatar || undefined"
                   class="border-4 border-white dark:border-gray-700 shadow-md bg-gradient-to-br from-blue-400 to-blue-500 text-white text-4xl font-bold"
                 >
                   <template #default>
@@ -453,6 +453,15 @@ import { getUserProfile, getUserStats, updateUserProfile, updatePassword, upload
 import type { Activity, UserSession, UserAuditLog } from '@/api/user'
 import { formatDate } from '@/utils/format'
 import type { UploadCustomRequestOptions } from 'naive-ui'
+
+/** Safely extract detail message from an axios-style error response */
+function getResponseDetail(error: unknown): string | undefined {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const resp = (error as { response?: { data?: { detail?: string; message?: string } } }).response
+    return resp?.data?.detail || resp?.data?.message
+  }
+  return undefined
+}
 
 // 接口定义
 interface UserInfo {
@@ -1005,8 +1014,8 @@ const normalizeAvatarUrl = (rawUrl?: string) => {
   const clean = rawUrl.replace(/\\/g, '/')
   const apiBase = getApiBaseUrl()
 
-  if (clean.includes('/paicongming/')) {
-    const idx = clean.indexOf('/paicongming/')
+  if (clean.includes('/files/')) {
+    const idx = clean.indexOf('/files/')
     return `${apiBase}${clean.slice(idx)}?t=${Date.now()}`
   }
 
@@ -1175,8 +1184,8 @@ const handleUpdateProfile = async () => {
     
     message.success(t('common.saveSuccess'))
     await loadUserProfile()
-  } catch (error: any) {
-    const errMsg = error?.response?.data?.detail || error?.response?.data?.message
+  } catch (error: unknown) {
+    const errMsg = getResponseDetail(error)
     if (!errMsg) {
       message.error(t('profile.updateFailed'))
     }
@@ -1197,8 +1206,8 @@ const handleChangePassword = async () => {
     
     message.success(t('profile.passwordChangeSuccess'))
     passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
-  } catch (error: any) {
-    const errMsg = error?.response?.data?.detail || error?.response?.data?.message || t('profile.passwordChangeFailed')
+  } catch (error: unknown) {
+    const errMsg = getResponseDetail(error) || t('profile.passwordChangeFailed')
     message.error(errMsg)
   } finally {
     updatingPassword.value = false
@@ -1215,8 +1224,8 @@ const generateApiKey = async () => {
       apiKey.value = resData.api_key as string
       message.success(t('profile.apiKeyGenerated'))
     }
-  } catch (error: any) {
-    const errMsg = error?.response?.data?.detail || error?.response?.data?.message || t('profile.apiKeyGenerateFailed')
+  } catch (error: unknown) {
+    const errMsg = getResponseDetail(error) || t('profile.apiKeyGenerateFailed')
     message.error(errMsg)
   } finally {
     generatingApiKey.value = false
@@ -1229,8 +1238,8 @@ const revokeApiKey = async () => {
     await apiRevokeKey()
     apiKey.value = ''
     message.success(t('profile.apiKeyRevoked'))
-  } catch (error: any) {
-    const errMsg = error?.response?.data?.detail || error?.response?.data?.message || t('profile.apiKeyRevokeFailed') || 'Failed to revoke API Key'
+  } catch (error: unknown) {
+    const errMsg = getResponseDetail(error) || t('profile.apiKeyRevokeFailed') || 'Failed to revoke API Key'
     message.error(errMsg)
   } finally {
     revokingApiKey.value = false

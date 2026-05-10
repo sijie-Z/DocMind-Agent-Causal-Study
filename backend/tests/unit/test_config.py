@@ -70,3 +70,39 @@ class TestSettingsValidation:
             s = Settings()
             for path in s.RATE_LIMIT_EXCLUDE_PATHS:
                 assert "auth" not in path.lower()
+
+    def test_numeric_settings_reasonable_ranges(self):
+        """数值配置应在合理范围内。"""
+        env = {
+            "SECRET_KEY": "a" * 32,
+            "JWT_SECRET_KEY": "b" * 32,
+            "DATABASE_URL": "mysql+aiomysql://root:root@localhost:3306/test",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            from app.core.config import Settings
+            s = Settings()
+            assert 1 <= s.DATABASE_POOL_SIZE <= 100
+            assert 0 <= s.DATABASE_MAX_OVERFLOW <= 100
+            assert s.SLOW_REQUEST_THRESHOLD_MS > 0
+            assert s.RATE_LIMIT_REQUESTS_PER_MINUTE > 0
+            assert s.RATE_LIMIT_WINDOW_SECONDS > 0
+            assert s.AI_MAX_TOKENS > 0
+            assert s.AI_STREAM_TIMEOUT > 0
+            assert s.MONITORING_INTERVAL >= 5
+
+    def test_expose_exception_detail_default_false(self):
+        """生产环境不应暴露异常详情。"""
+        env = {
+            "SECRET_KEY": "a" * 32,
+            "JWT_SECRET_KEY": "b" * 32,
+            "DATABASE_URL": "mysql+aiomysql://root:root@localhost:3306/test",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            from app.core.config import Settings
+            s = Settings()
+            assert s.EXPOSE_EXCEPTION_DETAIL is False
+
+    def test_rate_limit_default_is_true(self):
+        """限流默认值应为 True（测试环境覆盖为 false 除外）。"""
+        from app.core.config.base import BaseAppSettings
+        assert BaseAppSettings.model_fields["ENABLE_RATE_LIMIT"].default is True

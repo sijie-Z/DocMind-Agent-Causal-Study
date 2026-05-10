@@ -20,6 +20,8 @@ class _ESHolder:
 
     def __init__(self):
         self._client: Optional[AsyncElasticsearch] = None
+        self.es_analyzer: str = "standard"
+        self.es_search_analyzer: str = "standard"
 
     @property
     def client(self) -> Optional[AsyncElasticsearch]:
@@ -39,16 +41,14 @@ class _ESHolder:
             info = await self._client.info()
             logger.info(f"Elasticsearch connected, version: {info.get('version', {}).get('number', 'unknown')}")
 
-            # Detect IK analyzer
+            # Detect IK analyzer at init time — store on holder, not settings
             try:
                 await self._client.indices.analyze(body={"analyzer": "ik_smart", "text": "你好世界"})
                 logger.info("IK analyzer detected — using ik_smart/ik_max_word")
-                settings.ES_ANALYZER = "ik_smart"
-                settings.ES_SEARCH_ANALYZER = "ik_max_word"
+                self.es_analyzer = "ik_smart"
+                self.es_search_analyzer = "ik_max_word"
             except Exception:
                 logger.warning("IK analyzer not found — falling back to standard (poor CJK support)")
-                settings.ES_ANALYZER = "standard"
-                settings.ES_SEARCH_ANALYZER = "standard"
 
             await _create_index_if_not_exists(self._client)
         except Exception as e:
@@ -120,8 +120,8 @@ async def close_elasticsearch():
 # Index management
 # ---------------------------------------------------------------------------
 def _knowledge_index_mapping() -> dict:
-    analyzer = getattr(settings, "ES_ANALYZER", "standard")
-    search_analyzer = getattr(settings, "ES_SEARCH_ANALYZER", "standard")
+    analyzer = _holder.es_analyzer
+    search_analyzer = _holder.es_search_analyzer
     return {
         "mappings": {
             "properties": {

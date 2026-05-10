@@ -82,7 +82,7 @@
           :autosize="{ minRows: 1, maxRows: 6 }"
           :bordered="false"
           class="text-base px-2 py-1 !bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-          @keydown.enter.prevent="$emit('send')"
+          @keydown.enter.prevent="onKeydown"
           :disabled="isLoading"
         />
 
@@ -200,10 +200,14 @@ defineProps<{
   connectionStatusText: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   send: []
   stopGeneration: []
   triggerFileUpload: []
   removeAttachment: [index: number]
 }>()
+
+const onKeydown = (e: KeyboardEvent) => {
+  if (!e.shiftKey) emit('send')
+}
 </script>

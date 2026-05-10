@@ -67,7 +67,7 @@ async def agent_chat(
     )
 
 
-@router.get("/tools")
+@router.get("/tools", response_model=dict)
 async def list_tools(
     current_user: User = Depends(get_current_user),
 ):
@@ -88,7 +88,7 @@ async def list_tools(
     }
 
 
-@router.get("/skills")
+@router.get("/skills", response_model=dict)
 async def list_skills(
     current_user: User = Depends(get_current_user),
 ):

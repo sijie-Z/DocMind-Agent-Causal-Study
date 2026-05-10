@@ -1,6 +1,7 @@
 """Reranker — cross-encoder or LLM-based document reranking."""
 import logging
 import re
+import time
 from typing import List, Dict
 
 from app.core.config import settings
@@ -12,6 +13,10 @@ async def rerank(query: str, hits: List[Dict], rerank_client=None) -> List[Dict]
     """Rerank hits using available reranker (Zhipu rerank API or LLM fallback)."""
     if not hits or not settings.RAG_ENABLE_RERANKER:
         return hits
+
+    from app.core.prometheus import RAG_RERANK_LATENCY, RAG_RERANK_TOTAL
+    RAG_RERANK_TOTAL.inc()
+    start = time.perf_counter()
 
     top_n = max(1, int(settings.RAG_RERANK_TOP_N or 20))
     candidates = hits[:top_n]
@@ -85,3 +90,5 @@ async def rerank(query: str, hits: List[Dict], rerank_client=None) -> List[Dict]
     except Exception as e:
         logger.warning(f"Reranker failed, fallback to original: {e}")
         return hits
+    finally:
+        RAG_RERANK_LATENCY.observe(time.perf_counter() - start)

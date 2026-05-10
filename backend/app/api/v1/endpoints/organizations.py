@@ -4,7 +4,7 @@
 """
 
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete
 
@@ -17,10 +17,11 @@ from app.core.security import get_current_user, permission_required
 from app.models.rbac import PermissionType
 from app.api.v1.endpoints.notifications import create_notification
 from app.services.audit_service import audit_service
+from app.exceptions import NotFoundError, ValidationError, AuthorizationError, ConflictError, AppError
 
 router = APIRouter()
 
-@router.get("/tree", summary="获取组织架构树", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION]))])
+@router.get("/tree", response_model=dict, summary="获取组织架构树", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION]))])
 async def get_organization_tree(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -35,12 +36,9 @@ async def get_organization_tree(
             "data": tree
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取组织架构树失败: {str(e)}"
-        )
+        raise AppError(f"获取组织架构树失败: {str(e)}")
 
-@router.post("/", summary="创建组织", dependencies=[Depends(permission_required([PermissionType.CREATE_ORGANIZATION]))])
+@router.post("/", response_model=dict, summary="创建组织", dependencies=[Depends(permission_required([PermissionType.CREATE_ORGANIZATION]))])
 async def create_organization(
     org_in: OrganizationCreate,
     current_user: User = Depends(get_current_user),
@@ -51,7 +49,7 @@ async def create_organization(
         # 检查重名
         existing = await organization_service.get_organization_by_name(db, org_in.name)
         if existing:
-            raise HTTPException(status_code=400, detail="组织名称已存在")
+            raise ValidationError("组织名称已存在")
             
         new_org = await organization_service.create_organization(
             db, org_in.model_dump(), current_user.id
@@ -65,15 +63,12 @@ async def create_organization(
                 "name": new_org.name
             }
         }
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"创建组织失败: {str(e)}"
-        )
+        raise AppError(f"创建组织失败: {str(e)}")
 
-@router.get("/{org_id}/stats", summary="获取组织统计信息", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
+@router.get("/{org_id}/stats", response_model=dict, summary="获取组织统计信息", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
 async def get_organization_stats(
     org_id: int,
     current_user: User = Depends(get_current_user),
@@ -86,7 +81,7 @@ async def get_organization_stats(
         "data": stats
     }
 
-@router.get("/", summary="获取组织列表", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION]))])
+@router.get("/", response_model=dict, summary="获取组织列表", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION]))])
 async def get_organizations(
     page: int = 1,
     page_size: int = 10,
@@ -139,9 +134,9 @@ async def get_organizations(
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取组织列表失败: {str(e)}")
+        raise AppError(f"获取组织列表失败: {str(e)}")
 
-@router.get("/{org_id}", summary="获取组织信息", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
+@router.get("/{org_id}", response_model=dict, summary="获取组织信息", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
 async def get_organization(
     org_id: int,
     current_user: User = Depends(get_current_user),
@@ -152,10 +147,10 @@ async def get_organization(
     result = await db.execute(query)
     org = result.scalar_one_or_none()
     if not org:
-        raise HTTPException(status_code=404, detail="组织不存在")
+        raise NotFoundError("组织不存在")
     return {"success": True, "data": org}
 
-@router.put("/{org_id}", summary="更新组织信息", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
+@router.put("/{org_id}", response_model=dict, summary="更新组织信息", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
 async def update_organization(
     org_id: int,
     org_in: OrganizationUpdate,
@@ -168,15 +163,15 @@ async def update_organization(
             db, org_id, org_in.model_dump(exclude_unset=True)
         )
         if not updated_org:
-            raise HTTPException(status_code=404, detail="组织不存在")
+            raise NotFoundError("组织不存在")
             
         return {"success": True, "message": "更新成功"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ValidationError(str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
+        raise AppError(f"更新失败: {str(e)}")
 
-@router.delete("/batch", summary="批量删除组织", dependencies=[Depends(permission_required([PermissionType.DELETE_ORGANIZATION]))])
+@router.delete("/batch", response_model=dict, summary="批量删除组织", dependencies=[Depends(permission_required([PermissionType.DELETE_ORGANIZATION]))])
 async def batch_delete_organizations(
     data: dict,
     current_user: User = Depends(get_current_user),
@@ -199,9 +194,9 @@ async def batch_delete_organizations(
         )
         return {"success": True, "message": f"成功删除 {len(ids)} 个组织"}
     else:
-        raise HTTPException(status_code=500, detail="批量删除失败")
+        raise AppError("批量删除失败")
 
-@router.delete("/{org_id}", summary="删除组织", dependencies=[Depends(permission_required([PermissionType.DELETE_ORGANIZATION], organization_id_param='org_id'))])
+@router.delete("/{org_id}", response_model=dict, summary="删除组织", dependencies=[Depends(permission_required([PermissionType.DELETE_ORGANIZATION], organization_id_param='org_id'))])
 async def delete_organization(
     org_id: int,
     current_user: User = Depends(get_current_user),
@@ -220,9 +215,9 @@ async def delete_organization(
         )
         return {"success": True, "message": "删除成功"}
     else:
-        raise HTTPException(status_code=500, detail="删除组织失败")
+        raise AppError("删除组织失败")
 
-@router.get("/{org_id}/members", summary="获取组织成员列表", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
+@router.get("/{org_id}/members", response_model=dict, summary="获取组织成员列表", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
 async def get_organization_members(
     org_id: int,
     current_user: User = Depends(get_current_user),
@@ -234,7 +229,7 @@ async def get_organization_members(
         org_query = select(Organization).where(Organization.id == org_id)
         org_result = await db.execute(org_query)
         if not org_result.scalar_one_or_none():
-            raise HTTPException(status_code=404, detail="组织不存在")
+            raise NotFoundError("组织不存在")
             
         # 查询属于该组织的用户
         user_query = select(User).where(User.organization_id == org_id)
@@ -255,9 +250,9 @@ async def get_organization_members(
             
         return {"success": True, "data": member_list}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取成员列表失败: {str(e)}")
+        raise AppError(f"获取成员列表失败: {str(e)}")
 
-@router.post("/{org_id}/members/{user_id}", summary="添加成员到组织", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
+@router.post("/{org_id}/members/{user_id}", response_model=dict, summary="添加成员到组织", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
 async def add_organization_member(
     org_id: int,
     user_id: int,
@@ -266,11 +261,11 @@ async def add_organization_member(
 ):
     org = (await db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
     if not org:
-        raise HTTPException(status_code=404, detail="组织不存在")
+        raise NotFoundError("组织不存在")
 
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise NotFoundError("用户不存在")
 
     user_obj: Any = user
     old_org_id = user_obj.organization_id
@@ -300,7 +295,7 @@ async def add_organization_member(
 
     return {"success": True, "message": "成员已加入组织"}
 
-@router.patch("/{org_id}/members/{user_id}/role", summary="更新组织成员角色", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
+@router.patch("/{org_id}/members/{user_id}/role", response_model=dict, summary="更新组织成员角色", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
 async def update_organization_member_role(
     org_id: int,
     user_id: int,
@@ -309,11 +304,11 @@ async def update_organization_member_role(
     db: AsyncSession = Depends(get_db)
 ):
     if role not in ["user", "admin"]:
-        raise HTTPException(status_code=400, detail="无效角色")
+        raise ValidationError("无效角色")
 
     user = (await db.execute(select(User).where(User.id == user_id, User.organization_id == org_id))).scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="组织成员不存在")
+        raise NotFoundError("组织成员不存在")
 
     user_obj: Any = user
     user_obj.role = role
@@ -331,7 +326,7 @@ async def update_organization_member_role(
 
     return {"success": True, "message": "角色更新成功"}
 
-@router.delete("/{org_id}/members/{user_id}", summary="移除组织成员", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
+@router.delete("/{org_id}/members/{user_id}", response_model=dict, summary="移除组织成员", dependencies=[Depends(permission_required([PermissionType.UPDATE_ORGANIZATION], organization_id_param='org_id'))])
 async def remove_organization_member(
     org_id: int,
     user_id: int,
@@ -340,7 +335,7 @@ async def remove_organization_member(
 ):
     user = (await db.execute(select(User).where(User.id == user_id, User.organization_id == org_id))).scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="组织成员不存在")
+        raise NotFoundError("组织成员不存在")
 
     user_obj: Any = user
     user_obj.organization_id = None
@@ -358,7 +353,7 @@ async def remove_organization_member(
 
     return {"success": True, "message": "成员已移除"}
 
-@router.get("/{org_id}/documents", summary="获取组织关联文档", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
+@router.get("/{org_id}/documents", response_model=dict, summary="获取组织关联文档", dependencies=[Depends(permission_required([PermissionType.VIEW_ORGANIZATION], organization_id_param='org_id'))])
 async def get_organization_documents(
     org_id: int,
     current_user: User = Depends(get_current_user),
@@ -383,5 +378,5 @@ async def get_organization_documents(
             
         return {"success": True, "data": doc_list}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取关联文档失败: {str(e)}")
+        raise AppError(f"获取关联文档失败: {str(e)}")
 

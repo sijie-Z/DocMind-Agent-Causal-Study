@@ -50,6 +50,9 @@
             <n-button secondary circle size="medium" @click="loadKnowledgeBases">
               <template #icon><n-icon><RefreshOutline /></n-icon></template>
             </n-button>
+            <n-button secondary circle size="medium" @click="$router.push('/knowledge/graph')">
+              <template #icon><n-icon><GitNetworkOutline /></n-icon></template>
+            </n-button>
             <n-button secondary round size="medium" @click="handleRebuildLatestFailedDoc">
               最近失败文档重建
             </n-button>
@@ -654,7 +657,8 @@ import {
   CloseCircleOutline,
   CloseOutline,
   ListOutline,
-  GridOutline
+  GridOutline,
+  GitNetworkOutline
 } from '@vicons/ionicons5'
 import type { UploadFileInfo } from 'naive-ui'
 import { 
@@ -669,6 +673,11 @@ import {
 import type { KnowledgeBase } from '@/api/knowledge'
 import { formatDate } from '@/utils/format'
 import { getRagMetrics, type RagMetrics } from '@/api/rag'
+
+/** Safely extract error message from unknown error */
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 interface UploadForm {
   title: string
@@ -830,8 +839,8 @@ const handleBatchDelete = async () => {
     message.success(t('common.deleteSuccess'))
     selectedIds.value = []
     await loadKnowledgeBases()
-  } catch (error: any) {
-    message.error(t('common.deleteFailed') + '：' + error.message)
+  } catch (error: unknown) {
+    message.error(t('common.deleteFailed') + '：' + getErrorMessage(error))
   }
 }
 
@@ -883,7 +892,7 @@ const loadKnowledgeBases = async () => {
         knowledgeBases.value = []
         pagination.value.itemCount = 0
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     loadError.value = true
     // Failed to load knowledge bases
   } finally {
@@ -964,13 +973,14 @@ const uploadFile = async () => {
     fileList.value = []
     
     await loadKnowledgeBases()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errMsg = getErrorMessage(error)
     const task = activeTasks.value.find(t => t.id === taskId)
     if (task) {
       task.status = 'error'
-      task.error = error.message
+      task.error = errMsg
     }
-    message.error(t('knowledge.uploadFailed') + '：' + error.message)
+    message.error(t('knowledge.uploadFailed') + '：' + errMsg)
   } finally {
     uploading.value = false
   }
@@ -1017,8 +1027,8 @@ const handleRebuild = async (item: KnowledgeBase) => {
     await rebuildKnowledgeBase(item.id)
     message.success(t('knowledge.rebuildSuccess') || '开始重新构建索引')
     await loadKnowledgeBases()
-  } catch (error: any) {
-    message.error((t('knowledge.rebuildFailed') || '重新构建失败') + '：' + error.message)
+  } catch (error: unknown) {
+    message.error((t('knowledge.rebuildFailed') || '重新构建失败') + '：' + getErrorMessage(error))
   }
 }
 
@@ -1027,8 +1037,8 @@ const handleRetryVector = async (item: KnowledgeBase) => {
     await rebuildKnowledgeBase(item.id)
     message.success(t('knowledge.retryVectorSuccess'))
     await loadKnowledgeBases()
-  } catch (error: any) {
-    message.error(t('knowledge.retryVectorFailed') + '：' + error.message)
+  } catch (error: unknown) {
+    message.error(t('knowledge.retryVectorFailed') + '：' + getErrorMessage(error))
   }
 }
 
@@ -1042,8 +1052,8 @@ const handleRebuildLatestFailedDoc = async () => {
     await rebuildKnowledgeBase(failed.id)
     message.success(t('knowledge.rebuildSubmitted', { title: failed.title || failed.file_name }))
     await loadKnowledgeBases()
-  } catch (error: any) {
-    message.error(t('knowledge.rebuildSubmitFailed') + '：' + (error?.message || t('knowledge.unknownError')))
+  } catch (error: unknown) {
+    message.error(t('knowledge.rebuildSubmitFailed') + '：' + (getErrorMessage(error) || t('knowledge.unknownError')))
   }
 }
 
@@ -1077,8 +1087,8 @@ const deleteKnowledge = async (item: KnowledgeBase) => {
     await deleteKnowledgeBase(item.id)
     message.success(t('common.deleteSuccess'))
     await loadKnowledgeBases()
-  } catch (error: any) {
-    message.error(t('knowledge.deleteFailed') + '：' + error.message)
+  } catch (error: unknown) {
+    message.error(t('knowledge.deleteFailed') + '：' + getErrorMessage(error))
   }
 }
 

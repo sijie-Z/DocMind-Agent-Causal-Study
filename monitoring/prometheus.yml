@@ -1,0 +1,21 @@
+# Prometheus configuration for DocMind
+# Usage: docker run -v ./prometheus.yml:/etc/prometheus/prometheus.yml -p 9090:9090 prom/prometheus
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "docmind-backend"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+        labels:
+          service: "docmind-backend"
+          environment: "production"
+
+  # If running backend inside Docker network
+  # - job_name: "docmind-backend-internal"
+  #   metrics_path: "/metrics"
+  #   static_configs:
+  #     - targets: ["backend:8000"]

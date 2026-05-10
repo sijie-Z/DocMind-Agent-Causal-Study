@@ -12,7 +12,9 @@ from app.rag.query_processor import (
     QueryIntentClassifier, QueryIntent, extract_query_terms,
     rewrite_query_candidates, rewrite_query_llm,
     generate_hyde_doc, generate_multi_hyde_docs,
+    QueryComplexityClassifier, RetrievalStrategy,
 )
+from app.core.prometheus import RAG_QUERY_INTENT, RAG_ADAPTIVE_STRATEGY
 
 logger = logging.getLogger(__name__)
 
@@ -110,25 +112,26 @@ class HybridRetriever:
 
     # ---- Vector search ----
 
-    async def _vector_hits(self, query: str, filters: List[Dict], candidate_size: int) -> Tuple[List[Dict], List[float]]:
+    async def _vector_hits(
+        self, query: str, filters: List[Dict], candidate_size: int, enable_hyde: bool = True
+    ) -> Tuple[List[Dict], List[float]]:
         intent = QueryIntentClassifier.classify(query)
-        query_vector_task = self.get_embedding(query)
-        hyde_task = generate_hyde_doc(query, intent, self.openai_client, settings.DEEPSEEK_MODEL)
-        multi_hyde_task = generate_multi_hyde_docs(query, intent, self.openai_client, settings.DEEPSEEK_MODEL, 2)
-
-        query_vector, hyde_doc, multi_hyde_docs = await asyncio.gather(
-            query_vector_task, hyde_task, multi_hyde_task
-        )
+        query_vector = await self.get_embedding(query)
 
         embedding_to_search = query_vector
-        all_hyde = [hyde_doc] + multi_hyde_docs if hyde_doc else multi_hyde_docs
 
-        if all_hyde and query_vector:
-            hyde_vectors = await asyncio.gather(*[self.get_embedding(d) for d in all_hyde if d])
-            if hyde_vectors:
-                avg_hyde = [sum(v[i] for v in hyde_vectors) / len(hyde_vectors) for i in range(len(query_vector))]
-                embedding_to_search = [v1 * 0.6 + v2 * 0.4 for v1, v2 in zip(query_vector, avg_hyde)]
-                logger.info(f"Multi-HyDE fusion: {len(hyde_vectors)} docs, 60/40 weight")
+        if enable_hyde and query_vector:
+            hyde_task = generate_hyde_doc(query, intent, self.openai_client, settings.DEEPSEEK_MODEL)
+            multi_hyde_task = generate_multi_hyde_docs(query, intent, self.openai_client, settings.DEEPSEEK_MODEL, 2)
+            hyde_doc, multi_hyde_docs = await asyncio.gather(hyde_task, multi_hyde_task)
+            all_hyde = [hyde_doc] + multi_hyde_docs if hyde_doc else multi_hyde_docs
+
+            if all_hyde:
+                hyde_vectors = await asyncio.gather(*[self.get_embedding(d) for d in all_hyde if d])
+                if hyde_vectors:
+                    avg_hyde = [sum(v[i] for v in hyde_vectors) / len(hyde_vectors) for i in range(len(query_vector))]
+                    embedding_to_search = [v1 * 0.6 + v2 * 0.4 for v1, v2 in zip(query_vector, avg_hyde)]
+                    logger.info(f"Multi-HyDE fusion: {len(hyde_vectors)} docs, 60/40 weight")
 
         if not embedding_to_search:
             return [], query_vector
@@ -395,7 +398,13 @@ class HybridRetriever:
         top_k: int = 5,
         document_ids: Optional[List[str]] = None,
     ) -> Tuple[List[Dict], List[float]]:
-        """Execute hybrid retrieval and return (results, query_vector)."""
+        """Execute adaptive retrieval and return (results, query_vector).
+
+        Strategy is selected automatically based on query complexity:
+        - keyword_only: fast keyword search, no embedding calls
+        - hybrid: keyword + vector (default)
+        - hybrid_hyde: keyword + vector + HyDE + multi-rewrite (full pipeline)
+        """
         org_filter = {"term": {"organization_id": str(organization_id)}}
         filters = [org_filter]
         if document_ids:
@@ -405,10 +414,30 @@ class HybridRetriever:
 
         candidate_size = max(top_k * max(1, settings.RAG_MMR_CANDIDATE_MULTIPLIER), 12)
 
-        kw_hits, (vec_hits, query_vector) = await asyncio.gather(
-            self._keyword_hits(query, filters, candidate_size),
-            self._vector_hits(query, filters, candidate_size),
-        )
+        # Adaptive strategy selection
+        strategy = QueryComplexityClassifier.get_strategy(query)
+        RAG_ADAPTIVE_STRATEGY.labels(strategy=strategy).inc()
+        logger.info(f"Adaptive RAG: query='{query[:50]}...' → strategy={strategy}")
+
+        if strategy == "keyword_only":
+            # Fast path: keyword search only, skip embedding
+            kw_hits = await self._keyword_hits(query, filters, candidate_size)
+            documents = self._post_process(query, kw_hits, top_k)
+            return documents, []
+
+        # Hybrid paths: keyword + vector (parallel)
+        if strategy == "hybrid_hyde":
+            # Full pipeline: enable HyDE and multi-rewrite
+            kw_hits, (vec_hits, query_vector) = await asyncio.gather(
+                self._keyword_hits(query, filters, candidate_size),
+                self._vector_hits(query, filters, candidate_size),
+            )
+        else:
+            # Standard hybrid: keyword + vector without HyDE
+            kw_hits, (vec_hits, query_vector) = await asyncio.gather(
+                self._keyword_hits(query, filters, candidate_size),
+                self._vector_hits(query, filters, candidate_size, enable_hyde=False),
+            )
 
         fused = self._rrf_fuse(kw_hits, vec_hits)
         if not fused:

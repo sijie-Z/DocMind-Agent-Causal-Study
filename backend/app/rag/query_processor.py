@@ -9,6 +9,54 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 QueryIntent = Literal["factual", "procedural", "list", "definition", "comparison", "causal", "summary", "other"]
+QueryComplexity = Literal["simple", "medium", "complex"]
+RetrievalStrategy = Literal["keyword_only", "hybrid", "hybrid_hyde"]
+
+
+class QueryComplexityClassifier:
+    """Classifies query complexity to adapt retrieval strategy (Adaptive RAG).
+
+    - simple:  keyword-only search (fast, no embedding calls)
+    - medium:  hybrid keyword + vector (default)
+    - complex: hybrid + HyDE + multi-rewrite (full pipeline)
+    """
+
+    COMPLEXITY_SIGNALS = {
+        "high": ["对比", "比较", "区别", "优缺点", "分析", "评估", "综合", "总结",
+                  "为什么", "原因", "影响", "趋势", "策略", "方案", "建议",
+                  "compare", "analyze", "evaluate", "synthesize", "trade-off"],
+        "medium": ["如何", "怎么", "步骤", "流程", "有哪些", "列出", "解释",
+                    "how", "explain", "list", "describe", "define"],
+    }
+
+    @classmethod
+    def classify(cls, query: str) -> QueryComplexity:
+        q = query.strip().lower()
+        if not q:
+            return "simple"
+
+        # Length signal: very short queries are usually simple lookups
+        if len(q) <= 8:
+            return "simple"
+
+        # Check complexity signals
+        high_hits = sum(1 for w in cls.COMPLEXITY_SIGNALS["high"] if w in q)
+        medium_hits = sum(1 for w in cls.COMPLEXITY_SIGNALS["medium"] if w in q)
+
+        if high_hits >= 2 or (high_hits >= 1 and len(q) > 40):
+            return "complex"
+        if medium_hits >= 1 or high_hits >= 1 or len(q) > 30:
+            return "medium"
+        return "simple"
+
+    @classmethod
+    def get_strategy(cls, query: str) -> RetrievalStrategy:
+        complexity = cls.classify(query)
+        return {
+            "simple": "keyword_only",
+            "medium": "hybrid",
+            "complex": "hybrid_hyde",
+        }[complexity]
 
 
 class QueryIntentClassifier:

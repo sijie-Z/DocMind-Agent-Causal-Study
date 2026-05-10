@@ -2,7 +2,7 @@
 import time
 
 from app.rag.retriever import HybridRetriever
-from app.rag.query_processor import QueryIntentClassifier, rewrite_query_candidates
+from app.rag.query_processor import QueryIntentClassifier, rewrite_query_candidates, QueryComplexityClassifier
 from app.rag.context_compressor import compress, compress_context_list
 
 
@@ -139,3 +139,32 @@ def test_context_compressor_list():
 
     for ctx in compressed:
         print(f"  - {ctx['filename']}: {len(ctx['text'])} chars (compressed: {ctx.get('is_compressed', False)})")
+
+
+def test_complexity_classifier_simple():
+    """Short factual queries → simple → keyword_only."""
+    assert QueryComplexityClassifier.classify("报销流程") == "simple"
+    assert QueryComplexityClassifier.classify("张三是谁") == "simple"
+    assert QueryComplexityClassifier.get_strategy("报销流程") == "keyword_only"
+
+
+def test_complexity_classifier_medium():
+    """How-to / list queries → medium → hybrid."""
+    assert QueryComplexityClassifier.classify("如何提交报销申请？") == "medium"
+    assert QueryComplexityClassifier.classify("公司有哪些福利政策？") == "medium"
+    assert QueryComplexityClassifier.get_strategy("如何提交报销申请？") == "hybrid"
+
+
+def test_complexity_classifier_complex():
+    """Multi-signal analytical queries → complex → hybrid_hyde."""
+    q1 = "请对比分析公司不同部门的报销流程差异和优缺点"
+    assert QueryComplexityClassifier.classify(q1) == "complex"
+    assert QueryComplexityClassifier.get_strategy(q1) == "hybrid_hyde"
+
+    q2 = "为什么上季度的报销被拒绝率上升了？请分析原因并给出建议"
+    assert QueryComplexityClassifier.classify(q2) == "complex"
+
+
+def test_complexity_classifier_empty():
+    assert QueryComplexityClassifier.classify("") == "simple"
+    assert QueryComplexityClassifier.classify("   ") == "simple"

@@ -97,7 +97,7 @@ def build_suggested_tags(content: str) -> List[str]:
             tags.append(tag)
     return tags[:6]
 
-@router.post("/upload", status_code=status.HTTP_201_CREATED, dependencies=[Depends(permission_required([PermissionType.DOCUMENT_UPLOAD], organization_id_param='organization_id'))])
+@router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED, dependencies=[Depends(permission_required([PermissionType.DOCUMENT_UPLOAD], organization_id_param='organization_id'))])
 async def upload_document(
     file: UploadFile = File(...),
     organization_id: Optional[str] = Form(None),
@@ -140,7 +140,8 @@ async def upload_document(
         file_size = file.file.tell()
         await file.seek(0)
         
-        file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'bin'  # pyright: ignore[reportOperatorIssue]
+        filename = file.filename or "upload.bin"
+        file_ext = filename.rsplit(".", 1)[-1] if "." in filename else "bin"
         object_name = f"{org_id}/{md5}.{file_ext}"
         
         # 5. 上传到 MinIO
@@ -222,7 +223,7 @@ async def upload_document(
         logger.error(f"Upload failed trace: {str(e)}", exc_info=True)
         raise AppError(f"上传失败: {str(e)}" if settings.EXPOSE_EXCEPTION_DETAIL else "上传失败")
 
-@router.get("/{document_id}", dependencies=[Depends(get_current_user)])
+@router.get("/{document_id}", response_model=dict, dependencies=[Depends(get_current_user)])
 async def get_document_status(
     document_id: str,
     db: AsyncSession = Depends(get_db),
@@ -279,7 +280,7 @@ async def get_document_status(
         logger.error(f"Get document failed: {str(e)}")
         raise AppError("获取文档状态失败")
 
-@router.get("/{document_id}/content", dependencies=[Depends(get_current_user)])
+@router.get("/{document_id}/content", response_model=dict, dependencies=[Depends(get_current_user)])
 async def get_document_full_content(
     document_id: str,
     db: AsyncSession = Depends(get_db),

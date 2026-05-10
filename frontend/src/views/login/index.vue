@@ -209,7 +209,7 @@ const handleSubmit = async () => {
         message.error(result.message || t('login.loginFailed'))
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 操作失败
   } finally {
     loading.value = false

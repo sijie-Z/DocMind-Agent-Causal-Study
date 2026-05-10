@@ -19,13 +19,15 @@ from app.models.document import Document
 from app.models.prompt import PromptTemplate
 from app.services.auth_service import auth_service
 from app.services.rag_service import rag_service
-from app.services.semantic_cache import semantic_cache
+from app.rag.cache import SemanticCache
 from app.services.memory_service import get_memory_system
 from app.core.security import get_current_user
-from app.exceptions import NotFoundError
+from app.exceptions import NotFoundError, AuthorizationError, ValidationError
+from app.schemas.chat import ChatStreamRequest, FeedbackRequest
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+_semantic_cache = SemanticCache()
 
 
 STRICT_MODE_PROMPT = (
@@ -203,7 +205,7 @@ async def run_rag_pipeline(
     if not active_doc_ids and not strict_mode:
         query_vector = await rag_service.get_embedding(user_content)
         if query_vector:
-            cached_res = await semantic_cache.get_similar_answer(query_vector)
+            cached_res = await _semantic_cache.get(query_vector)
             if cached_res:
                 full_response = cached_res.get("answer", "")
                 sources_list = cached_res.get("sources", [])
@@ -281,22 +283,31 @@ async def run_rag_pipeline(
             conversation_id=conversation_id, message_id=ai_msg_id,
         ))
 
+    # Extract citation markers [n] from response and map to sources
+    import re
+    cited_indices = set(int(m) for m in re.findall(r"\[(\d+)\]", full_response))
+    cited_sources = [
+        {**src, "cited": True}
+        for i, src in enumerate(sources_list, 1)
+        if i in cited_indices
+    ] if cited_indices else sources_list[:3]  # fallback: top 3 if no explicit citations
+
     _emit(RAGEvent(
         type="message", content=full_response,
         conversation_id=conversation_id, message_id=ai_msg_id,
-        sources=sources_list, is_cached=False,
+        sources=cited_sources, is_cached=False,
     ))
 
     ai_msg = ChatMessage(
         id=ai_msg_id, session_id=conversation_id,
         content=full_response, message_type=MessageType.ASSISTANT,
-        meta_data=json.dumps({"sources": sources_list}, ensure_ascii=False),
+        meta_data=json.dumps({"sources": cited_sources, "citations_used": sorted(cited_indices)}, ensure_ascii=False),
     )
     session.add(ai_msg)
     await session.commit()
 
     if not active_doc_ids and not strict_mode and query_vector is not None:
-        await semantic_cache.set_cache(
+        await _semantic_cache.set(
             query=user_content, embedding=query_vector,
             answer=full_response, sources=sources_list,
         )
@@ -314,11 +325,10 @@ async def run_rag_pipeline(
 # ============================================================
 
 
-@router.post("/messages/{message_id}/feedback", dependencies=[Depends(get_current_user)])
+@router.post("/messages/{message_id}/feedback", response_model=dict, dependencies=[Depends(get_current_user)])
 async def update_message_feedback(
     message_id: str,
-    feedback: int = Body(..., embed=True),
-    note: Optional[str] = Body(None, embed=True),
+    body: FeedbackRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -329,19 +339,21 @@ async def update_message_feedback(
         )
         message_obj = (await db.execute(stmt)).scalar_one_or_none()
         if not message_obj:
-            return {"success": False, "message": "消息不存在或无权评价"}
-        message_obj.feedback = feedback
-        if note is not None:
-            message_obj.feedback_note = note
+            raise NotFoundError("消息不存在或无权评价")
+        message_obj.feedback = body.feedback
+        if body.note is not None:
+            message_obj.feedback_note = body.note
         await db.commit()
         return {"success": True, "message": "感谢您的反馈！"}
+    except NotFoundError:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Update feedback error: {e}")
-        return {"success": False, "message": f"操作失败: {str(e)}"}
+        raise ValidationError(f"操作失败: {str(e)}")
 
 
-@router.delete("/conversations/{conversation_id}/clear", dependencies=[Depends(get_current_user)])
+@router.delete("/conversations/{conversation_id}/clear", response_model=dict, dependencies=[Depends(get_current_user)])
 async def clear_conversation_messages(
     conversation_id: str,
     current_user: User = Depends(get_current_user),
@@ -359,13 +371,15 @@ async def clear_conversation_messages(
         await db.execute(delete_stmt)
         await db.commit()
         return {"success": True, "message": "会话已清空"}
+    except NotFoundError:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Clear conversation error: {e}")
-        return {"success": False, "message": str(e)}
+        raise ValidationError(f"清空失败: {str(e)}")
 
 
-@router.get("/conversations", dependencies=[Depends(get_current_user)])
+@router.get("/conversations", response_model=dict, dependencies=[Depends(get_current_user)])
 async def get_conversations(
     page: int = 1, page_size: int = 20,
     current_user: User = Depends(get_current_user),
@@ -455,10 +469,10 @@ async def get_conversations(
         }
     except Exception as e:
         logger.error(f"Get conversations error: {e}")
-        return {"success": False, "message": f"获取失败: {str(e)}", "data": []}
+        raise ValidationError(f"获取失败: {str(e)}")
 
 
-@router.delete("/conversations/{conversation_id}", dependencies=[Depends(get_current_user)])
+@router.delete("/conversations/{conversation_id}", response_model=dict, dependencies=[Depends(get_current_user)])
 async def delete_conversation(
     conversation_id: str,
     current_user: User = Depends(get_current_user),
@@ -471,7 +485,7 @@ async def delete_conversation(
         )
         session = (await db.execute(stmt)).scalar_one_or_none()
         if not session:
-            return {"success": False, "message": "会话不存在或无权删除"}
+            raise NotFoundError("会话不存在或无权删除")
         # Delete messages first (FK constraint), then the session
         await db.execute(
             delete(ChatMessage).where(ChatMessage.session_id == conversation_id)
@@ -479,12 +493,15 @@ async def delete_conversation(
         await db.delete(session)
         await db.commit()
         return {"success": True, "message": "会话删除成功"}
+    except NotFoundError:
+        raise
     except Exception as e:
         await db.rollback()
-        return {"success": False, "message": f"删除失败: {str(e)}"}
+        logger.error(f"Delete conversation error: {e}")
+        raise ValidationError(f"删除失败: {str(e)}")
 
 
-@router.post("/conversations/{conversation_id}/unbind-docs", dependencies=[Depends(get_current_user)])
+@router.post("/conversations/{conversation_id}/unbind-docs", response_model=dict, dependencies=[Depends(get_current_user)])
 async def unbind_conversation_docs(
     conversation_id: str,
     current_user: User = Depends(get_current_user),
@@ -497,7 +514,7 @@ async def unbind_conversation_docs(
         )
         session_obj = (await db.execute(stmt)).scalar_one_or_none()
         if not session_obj:
-            return {"success": False, "message": "无权访问"}
+            raise AuthorizationError("无权访问该会话")
         settings_json = session_obj.settings or {}
         if not isinstance(settings_json, dict):
             settings_json = {}
@@ -506,12 +523,15 @@ async def unbind_conversation_docs(
         flag_modified(session_obj, "settings")
         await db.commit()
         return {"success": True, "message": "已清除会话文档绑定"}
+    except (AuthorizationError, NotFoundError):
+        raise
     except Exception as e:
         await db.rollback()
-        return {"success": False, "message": f"操作失败: {str(e)}"}
+        logger.error(f"Unbind docs error: {e}")
+        raise ValidationError(f"操作失败: {str(e)}")
 
 
-@router.get("/conversations/{conversation_id}", dependencies=[Depends(get_current_user)])
+@router.get("/conversations/{conversation_id}", response_model=dict, dependencies=[Depends(get_current_user)])
 async def get_conversation(
     conversation_id: str,
     current_user: User = Depends(get_current_user),
@@ -607,7 +627,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@router.get("/metrics")
+@router.get("/metrics", response_model=dict)
 async def get_rag_metrics(
     window_seconds: int = Query(0, ge=0, le=86400),
     current_user: User = Depends(get_current_user),
@@ -773,18 +793,15 @@ async def sse_event(event_type: str, data: dict) -> str:
 
 @router.post("/stream")
 async def chat_stream_endpoint(
-    content: str = Body(...),
-    conversationId: Optional[str] = Body(None),
-    fileIds: Optional[List[str]] = Body(None),
-    payload: Optional[dict] = Body(None),
+    body: ChatStreamRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     async def event_generator():
         try:
-            user_content = content
-            file_ids = fileIds or []
-            payload_data = payload or {}
+            user_content = body.content
+            file_ids = body.fileIds or []
+            payload_data = body.payload or {}
             strict_mode = payload_data.get("strictMode", False)
             privacy_mode = payload_data.get("privacyMode", True)
 
@@ -810,7 +827,7 @@ async def chat_stream_endpoint(
                         user_id=current_user.id,
                         search_org_id=search_org_id,
                         organization_id=org_id,
-                        conversation_id=conversationId,
+                        conversation_id=body.conversationId,
                         file_ids=file_ids,
                         strict_mode=strict_mode,
                         privacy_mode=privacy_mode,

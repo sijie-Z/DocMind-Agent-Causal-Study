@@ -418,7 +418,29 @@ class MemoryNodeExecutor(NodeExecutor):
 
 
 class CodeExecuteNodeExecutor(NodeExecutor):
-    """代码执行节点执行器"""
+    """代码执行节点执行器 — 使用受限 builtins 防止 RCE"""
+
+    # 只暴露安全的 builtins，移除所有危险函数
+    _SAFE_BUILTINS = {
+        k: v for k, v in __builtins__.items()
+        if k in (
+            "abs", "all", "any", "bool", "chr", "dict", "divmod", "enumerate",
+            "filter", "float", "format", "frozenset", "getattr", "hasattr",
+            "hash", "int", "isinstance", "issubclass", "iter", "len", "list",
+            "map", "max", "min", "next", "pow", "print", "range", "repr",
+            "reversed", "round", "set", "slice", "sorted", "str", "sum",
+            "tuple", "type", "zip",
+        )
+    } if isinstance(__builtins__, dict) else {
+        k: getattr(__builtins__, k) for k in (
+            "abs", "all", "any", "bool", "chr", "dict", "divmod", "enumerate",
+            "filter", "float", "format", "frozenset", "getattr", "hasattr",
+            "hash", "int", "isinstance", "issubclass", "iter", "len", "list",
+            "map", "max", "min", "next", "pow", "print", "range", "repr",
+            "reversed", "round", "set", "slice", "sorted", "str", "sum",
+            "tuple", "type", "zip",
+        )
+    }
 
     async def execute(self, state: WorkflowState) -> Dict[str, Any]:
         code = self.node.data.get("code", "")
@@ -427,36 +449,87 @@ class CodeExecuteNodeExecutor(NodeExecutor):
         if not code:
             raise ValueError("代码执行节点需要提供代码")
 
-        # 安全模式：限制危险操作
-        dangerous_keywords = ["import os", "import sys", "subprocess", "eval", "exec", "__import__"]
-        for kw in dangerous_keywords:
-            if kw in code:
-                raise ValueError(f"安全限制：代码包含不允许的关键字 '{kw}'")
+        if language != "python":
+            raise ValueError(f"不支持的语言: {language}，仅支持 python")
 
-        # 准备执行上下文
+        # AST 层面禁止 import、exec、eval 等危险节点
+        import ast
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            raise ValueError(f"代码语法错误: {e}")
+
+        _FORBIDDEN_NODES = (ast.Import, ast.ImportFrom)
+        _FORBIDDEN_NAMES = {"exec", "eval", "compile", "__import__", "open", "globals", "locals", "vars", "dir", "getattr", "setattr", "delattr", "breakpoint", "input", "exit", "quit"}
+        for node in ast.walk(tree):
+            if isinstance(node, _FORBIDDEN_NODES):
+                raise ValueError("安全限制：不允许 import 语句")
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _FORBIDDEN_NAMES:
+                raise ValueError(f"安全限制：不允许调用 {node.func.id}()")
+            if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+                raise ValueError(f"安全限制：不允许访问私有属性 .{node.attr}")
+
         context_vars = {
             "input": state.get("input", {}),
             "context": state.get("context", {}),
-            "result": None
+            "result": None,
         }
 
         try:
-            # 执行代码（受限环境）
-            exec_globals = {"__builtins__": __builtins__}
+            exec_globals = {"__builtins__": self._SAFE_BUILTINS}
             exec_locals = context_vars.copy()
             exec(code, exec_globals, exec_locals)
             result = exec_locals.get("result", "执行完成，无返回结果")
+        except ValueError:
+            raise
         except Exception as e:
             result = f"执行错误: {str(e)}"
 
         return {
             "node_outputs": {self.node.id: {"result": str(result), "language": language}},
-            "context": {"code_result": result}
+            "context": {"code_result": result},
         }
 
 
 class APICallNodeExecutor(NodeExecutor):
-    """API 调用节点执行器"""
+    """API 调用节点执行器 — 含 SSRF 防护"""
+
+    import ipaddress
+    import re
+
+    _PRIVATE_NETWORKS = (
+        ipaddress.ip_network("127.0.0.0/8"),
+        ipaddress.ip_network("10.0.0.0/8"),
+        ipaddress.ip_network("172.16.0.0/12"),
+        ipaddress.ip_network("192.168.0.0/16"),
+        ipaddress.ip_network("169.254.0.0/16"),  # 云元数据
+        ipaddress.ip_network("::1/128"),
+        ipaddress.ip_network("fc00::/7"),
+    )
+
+    @classmethod
+    def _validate_url(cls, url: str) -> str:
+        from urllib.parse import urlparse
+        import socket
+
+        parsed = urlparse(url)
+        if parsed.scheme not in ("https", "http"):
+            raise ValueError(f"不允许的协议: {parsed.scheme}，仅支持 http/https")
+        if not parsed.hostname:
+            raise ValueError("URL 缺少主机名")
+
+        # 解析 DNS 并检查 IP
+        try:
+            addrinfos = socket.getaddrinfo(parsed.hostname, None)
+            for _, _, _, _, sockaddr in addrinfos:
+                ip = ipaddress.ip_address(sockaddr[0])
+                for net in cls._PRIVATE_NETWORKS:
+                    if ip in net:
+                        raise ValueError(f"不允许访问内网地址: {ip}")
+        except socket.gaierror:
+            raise ValueError(f"无法解析主机名: {parsed.hostname}")
+
+        return url
 
     async def execute(self, state: WorkflowState) -> Dict[str, Any]:
         import httpx
@@ -470,7 +543,6 @@ class APICallNodeExecutor(NodeExecutor):
         if not url:
             raise ValueError("API 调用节点需要提供 URL")
 
-        # 替换模板变量
         context = state.get("context", {})
         input_data = state.get("input", {})
 
@@ -478,6 +550,9 @@ class APICallNodeExecutor(NodeExecutor):
             if isinstance(value, (str, int, float)):
                 body_template = body_template.replace(f"{{{{{key}}}}}", str(value))
                 url = url.replace(f"{{{{{key}}}}}", str(value))
+
+        # SSRF 防护：验证 URL 不指向内网
+        url = self._validate_url(url)
 
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -592,11 +667,11 @@ class WorkflowEngine:
         self.node_results: Dict[str, NodeResult] = {}
         self.event_callback: Optional[Callable] = None
 
-    def set_event_callback(self, callback: Callable):
+    def set_event_callback(self, callback: Callable) -> None:
         """设置事件回调函数（用于 SSE 推送）"""
         self.event_callback = callback
 
-    async def emit_event(self, event_type: str, data: Dict[str, Any]):
+    async def emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """发送事件"""
         if self.event_callback:
             await self.event_callback(event_type, data)

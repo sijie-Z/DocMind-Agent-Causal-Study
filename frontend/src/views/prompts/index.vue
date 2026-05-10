@@ -282,8 +282,10 @@ const handleSubmit = async () => {
     }
     showDrawer.value = false
     loadPrompts()
-  } catch (error: any) {
-    message.error(error.response?.data?.detail || '保存失败')
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    message.error(detail || msg || '保存失败')
   } finally {
     submitting.value = false
   }

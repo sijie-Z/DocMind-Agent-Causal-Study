@@ -40,7 +40,7 @@ class MemoryItem:
         import uuid
         return uuid.uuid4().hex[:12]
 
-    def access(self):
+    def access(self) -> None:
         """访问记忆"""
         self.last_accessed = datetime.now()
         self.access_count += 1
@@ -75,7 +75,7 @@ class ShortTermMemory:
         self.max_size = max_size
         self.buffer: List[MemoryItem] = []
 
-    def add(self, item: MemoryItem):
+    def add(self, item: MemoryItem) -> None:
         """添加记忆"""
         self.buffer.append(item)
         if len(self.buffer) > self.max_size:
@@ -97,7 +97,7 @@ class ShortTermMemory:
                 break
         return results
 
-    def clear(self):
+    def clear(self) -> None:
         """清空记忆"""
         self.buffer.clear()
 
@@ -138,7 +138,7 @@ class LongTermMemory:
                 tokens.add(cjk_run[i:i + 2])
         return tokens
 
-    def add(self, item: MemoryItem):
+    def add(self, item: MemoryItem) -> None:
         """添加记忆"""
         memory_type = item.memory_type
         self.memories[memory_type].append(item)
@@ -303,7 +303,7 @@ class WorkingMemory:
         self.intermediate_results: Dict[str, Any] = {}
         self.variables: Dict[str, Any] = {}
 
-    def set_state(self, key: str, value: Any):
+    def set_state(self, key: str, value: Any) -> None:
         """设置状态"""
         self.state[key] = value
 
@@ -311,7 +311,7 @@ class WorkingMemory:
         """获取状态"""
         return self.state.get(key, default)
 
-    def push_task(self, task: Dict[str, Any]):
+    def push_task(self, task: Dict[str, Any]) -> None:
         """推入任务"""
         self.task_stack.append({
             "task": task,
@@ -324,7 +324,7 @@ class WorkingMemory:
             return self.task_stack.pop()
         return None
 
-    def set_result(self, key: str, value: Any):
+    def set_result(self, key: str, value: Any) -> None:
         """设置中间结果"""
         self.intermediate_results[key] = value
 
@@ -332,7 +332,7 @@ class WorkingMemory:
         """获取中间结果"""
         return self.intermediate_results.get(key)
 
-    def set_variable(self, key: str, value: Any):
+    def set_variable(self, key: str, value: Any) -> None:
         """设置变量"""
         self.variables[key] = value
 
@@ -347,7 +347,7 @@ class WorkingMemory:
             result = result.replace(f"{{{{{key}}}}}", str(value))
         return result
 
-    def clear(self):
+    def clear(self) -> None:
         """清空工作记忆"""
         self.state.clear()
         self.task_stack.clear()
@@ -372,7 +372,7 @@ class ReflectiveMemory:
         self.patterns: List[Dict[str, Any]] = []
         self.lessons: List[Dict[str, Any]] = []
 
-    def add_insight(self, insight: str, context: Dict[str, Any] = None):
+    def add_insight(self, insight: str, context: Optional[Dict[str, Any]] = None) -> None:
         """添加洞察"""
         self.insights.append({
             "content": insight,
@@ -380,7 +380,7 @@ class ReflectiveMemory:
             "created_at": datetime.now().isoformat()
         })
 
-    def add_pattern(self, pattern: str, examples: List[str] = None):
+    def add_pattern(self, pattern: str, examples: Optional[List[str]] = None) -> None:
         """添加模式"""
         self.patterns.append({
             "pattern": pattern,
@@ -388,7 +388,7 @@ class ReflectiveMemory:
             "created_at": datetime.now().isoformat()
         })
 
-    def add_lesson(self, lesson: str, trigger: str = None, solution: str = None):
+    def add_lesson(self, lesson: str, trigger: Optional[str] = None, solution: Optional[str] = None) -> None:
         """添加经验教训"""
         self.lessons.append({
             "lesson": lesson,
@@ -465,7 +465,7 @@ class AgentMemorySystem:
         self._loaded = False
         self._embedding_provider: Optional[Callable[[str], Awaitable[List[float]]]] = None
 
-    def set_embedding_provider(self, provider: Callable[[str], Awaitable[List[float]]]):
+    def set_embedding_provider(self, provider: Callable[[str], Awaitable[List[float]]]) -> None:
         """设置 embedding 提供者，启用语义搜索"""
         self._embedding_provider = provider
 
@@ -642,7 +642,7 @@ class AgentMemorySystem:
         if patterns:
             await self._save_to_redis()
 
-    async def store_interaction(self, user_input: str, assistant_response: str):
+    async def store_interaction(self, user_input: str, assistant_response: str) -> None:
         """存储交互"""
         await self.remember(
             f"用户: {user_input}",
@@ -655,7 +655,7 @@ class AgentMemorySystem:
             importance=0.5
         )
 
-    async def store_experience(self, success: bool, action: str, result: str, context: str = ""):
+    async def store_experience(self, success: bool, action: str, result: str, context: str = "") -> None:
         """存储经验"""
         importance = 0.8 if not success else 0.6
         await self.remember(
@@ -682,7 +682,7 @@ class AgentMemorySystem:
             "interaction_count": self.interaction_count
         }
 
-    def import_data(self, data: Dict[str, Any]):
+    def import_data(self, data: Dict[str, Any]) -> None:
         """导入记忆数据"""
         self.agent_id = data.get("agent_id", self.agent_id)
         self.interaction_count = data.get("interaction_count", 0)

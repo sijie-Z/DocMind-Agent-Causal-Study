@@ -10,7 +10,7 @@ import secrets
 import csv
 import io
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, Request
 
 logger = logging.getLogger(__name__)
 from fastapi.responses import StreamingResponse
@@ -29,78 +29,20 @@ from app.api.v1.endpoints.notifications import create_notification
 from app.core.security import get_current_user, permission_required
 from app.models.rbac import PermissionType
 from app.core.config import settings
-
-# 从认证服务获取当前用户依赖
+from app.exceptions import NotFoundError, ValidationError, AuthorizationError, ConflictError, AppError
+from app.schemas.user import (
+    UserInfoResponse, UserStatsResponse, UserUpdateProfile,
+    UserUpdatePassword, UserSessionResponse, UserAuditLogResponse,
+)
 
 router = APIRouter()
 
-# --- Response Schemas ---
-
-class UserInfoResponse(BaseModel):
-    id: int
-    username: str
-    email: str
-    full_name: Optional[str] = None
-    nickname: Optional[str] = None
-    phone: Optional[str] = None
-    avatar_url: Optional[str] = None
-    bio: Optional[str] = None
-    organization_id: Optional[int] = None
-    role: str
-    is_active: Optional[bool] = True
-    created_at: Optional[datetime] = None
-    last_login_at: Optional[datetime] = None
-    preferences: Optional[str] = None
-    api_key: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
-
-class UserStatsResponse(BaseModel):
-    conversation_count: int
-    message_count: int
-    file_count: int
-    knowledge_count: int
-    storage_used: int = 0  # Bytes
-    storage_limit: int = 0
-    activity_trend: List[int] =[] # 最近7天的活动数据
 
 class ActivityResponse(BaseModel):
     id: str
     type: str
     content: str
-    time: str  # ISO format or relative time string
-
-class UserUpdateProfile(BaseModel):
-    full_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    avatar_url: Optional[str] = None
-    bio: Optional[str] = None
-    preferences: Optional[Dict[str, Any]] = None
-    model_config = ConfigDict(from_attributes=True)
-
-class UserUpdatePassword(BaseModel):
-    old_password: str
-    new_password: str
-
-
-class UserSessionResponse(BaseModel):
-    id: int
-    device_name: Optional[str] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    is_active: bool
-    last_seen_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-
-
-class UserAuditLogResponse(BaseModel):
-    id: int
-    action: str
-    target_type: Optional[str] = None
-    target_id: Optional[str] = None
-    detail: Optional[str] = None
-    ip_address: Optional[str] = None
-    created_at: Optional[datetime] = None
+    time: str
 
 
 def _client_ip(request: Request) -> Optional[str]:
@@ -256,7 +198,7 @@ async def export_audit_logs(
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+        raise AppError(f"Export failed: {str(e)}")
 
 @router.get("/me", response_model=Dict[str, Any], summary="获取当前用户信息")
 async def get_user_profile(
@@ -269,7 +211,7 @@ async def get_user_profile(
         current_user = await db.get(User, current_user.id)
         
         if not current_user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise NotFoundError("User not found")
 
         # 2. 安全解析 preferences
         bio = None
@@ -305,7 +247,7 @@ async def get_user_profile(
         }
     except Exception as e:
         logger.exception(f"Error in GET /me: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Get user profile failed: {str(e)}")
+        raise AppError(f"Get user profile failed: {str(e)}")
 
         
 @router.get("/me/sessions", response_model=List[UserSessionResponse], summary="获取当前用户登录设备")
@@ -349,7 +291,7 @@ async def get_my_sessions(
     return data
 
 
-@router.delete("/me/sessions/{session_id}", summary="下线指定设备")
+@router.delete("/me/sessions/{session_id}", response_model=dict, summary="下线指定设备")
 async def revoke_my_session(
     session_id: int,
     request: Request,
@@ -364,7 +306,7 @@ async def revoke_my_session(
     )
     session = result.scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise NotFoundError("会话不存在")
 
     session_obj: Any = session
     session_obj.is_active = False
@@ -474,7 +416,7 @@ async def get_user_activities(
         for item in activities
     ]
 
-@router.get("/db-health", summary="用户相关数据库健康自检")
+@router.get("/db-health", response_model=dict, summary="用户相关数据库健康自检")
 async def user_db_health_check(
     current_user: User = Depends(auth_service.get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -598,7 +540,7 @@ async def get_user_stats(
             "knowledge_count": 0, "storage_used": 0, "storage_limit": int(settings.USER_STORAGE_LIMIT_BYTES), "activity_trend": [0] * 7
         }
 
-@router.get("/", summary="获取用户列表")
+@router.get("/", response_model=dict, summary="获取用户列表")
 async def get_users(
     skip: int = 0,
     limit: int = 100,
@@ -641,12 +583,9 @@ async def get_users(
         }
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取用户列表失败: {str(e)}"
-        )
+        raise AppError(f"获取用户列表失败: {str(e)}")
 
-@router.get("/{user_id}", summary="获取用户信息")
+@router.get("/{user_id}", response_model=dict, summary="获取用户信息")
 async def get_user(
     user_id: int,
     current_user: User = Depends(get_current_user),
@@ -658,18 +597,12 @@ async def get_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在"
-        )
+        raise NotFoundError("用户不存在")
 
     # 组织隔离：不允许查看其他组织的用户（除非是超级管理员）
     if not current_user.is_superuser and current_user.organization_id:
         if user.organization_id != current_user.organization_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="无权查看该用户信息"
-            )
+            raise AuthorizationError("无权查看该用户信息")
         
     # 安全解析 bio
     bio_val = ""
@@ -697,7 +630,7 @@ async def get_user(
         "preferences": user.preferences
     }
 
-@router.put("/{user_id}/role", summary="修改用户角色")
+@router.put("/{user_id}/role", response_model=dict, summary="修改用户角色")
 async def update_user_role(
     user_id: int,
     role: str,
@@ -711,13 +644,13 @@ async def update_user_role(
         user = result.scalar_one_or_none()
         
         if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+            raise NotFoundError("用户不存在")
         
         if role not in ["user", "admin"]:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的角色")
+            raise ValidationError("无效的角色")
         
         if user.id == current_user.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能修改自己的角色")
+            raise ValidationError("不能修改自己的角色")
         
         user_obj: Any = user
         user_obj.role = role
@@ -731,12 +664,12 @@ async def update_user_role(
         )
         await db.commit()
         return {"message": "用户角色修改成功", "user_id": user_id, "new_role": role}
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"修改用户角色失败: {str(e)}")
+        raise AppError(f"修改用户角色失败: {str(e)}")
 
-@router.delete("/{user_id}", summary="删除用户")
+@router.delete("/{user_id}", response_model=dict, summary="删除用户")
 async def delete_user(
     user_id: int,
     current_user: User = Depends(get_current_user),
@@ -749,11 +682,11 @@ async def delete_user(
         user = result.scalar_one_or_none()
         
         if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+            raise NotFoundError("用户不存在")
         if user.id == current_user.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能删除自己的账户")
+            raise ValidationError("不能删除自己的账户")
         if user.is_superuser:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="不能删除超级管理员账户")
+            raise AuthorizationError("不能删除超级管理员账户")
         
         user_to_deactivate: Any = user
         user_to_deactivate.is_active = False
@@ -767,10 +700,10 @@ async def delete_user(
         )
         await db.commit()
         return {"message": "用户删除成功", "user_id": user_id, "username": user.username}
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除用户失败: {str(e)}")
+        raise AppError(f"删除用户失败: {str(e)}")
 
 @router.put("/me", response_model=UserInfoResponse, summary="更新个人信息")
 async def update_user_profile(
@@ -795,7 +728,7 @@ async def update_user_profile(
         # if user_in.email is not None and current_user.email != user_in.email:
         #     result = await db.execute(select(User).where(User.email == user_in.email))
         #     if result.scalar_one_or_none():
-        #          raise HTTPException(status_code=400, detail="Email already registered")
+        #          raise ValidationError("Email already registered")
         #     current_user_obj.email = user_in.email
         #     has_changed = True
             
@@ -869,12 +802,12 @@ async def update_user_profile(
             "last_login_at": current_user.last_login_at, "preferences": current_user.preferences,
             "api_key": current_user.api_key
         }
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新个人信息失败: {str(e)}")
+        raise AppError(f"更新个人信息失败: {str(e)}")
 
-@router.put("/password", summary="修改密码")
+@router.put("/password", response_model=dict, summary="修改密码")
 async def update_password(
     password_in: UserUpdatePassword,
     request: Request,
@@ -884,7 +817,7 @@ async def update_password(
     """修改当前用户密码"""
     try:
         if not auth_service.verify_password(password_in.old_password, current_user.hashed_password):
-            raise HTTPException(status_code=400, detail="旧密码错误")
+            raise ValidationError("旧密码错误")
         
         current_user_obj: Any = current_user
         current_user_obj.hashed_password = auth_service.hash_password(password_in.new_password)
@@ -910,12 +843,12 @@ async def update_password(
 
         await db.commit()
         return {"message": "密码修改成功"}
-    except HTTPException:
+    except (AppError, NotFoundError, ValidationError, AuthorizationError, ConflictError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"修改密码失败: {str(e)}")
+        raise AppError(f"修改密码失败: {str(e)}")
 
-@router.post("/api-key", summary="生成新的 API Key")
+@router.post("/api-key", response_model=dict, summary="生成新的 API Key")
 async def generate_api_key(
     request: Request,
     current_user: User = Depends(auth_service.get_current_user),
@@ -950,9 +883,9 @@ async def generate_api_key(
         return {"api_key": new_key}
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"生成 API Key 失败: {str(e)}")
+        raise AppError(f"生成 API Key 失败: {str(e)}")
 
-@router.delete("/api-key", summary="撤销 API Key")
+@router.delete("/api-key", response_model=dict, summary="撤销 API Key")
 async def revoke_api_key(
     request: Request,
     current_user: User = Depends(auth_service.get_current_user),
@@ -975,5 +908,5 @@ async def revoke_api_key(
         return {"message": "API Key 已成功撤销"}
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"撤销 API Key 失败: {str(e)}")
+        raise AppError(f"撤销 API Key 失败: {str(e)}")
         

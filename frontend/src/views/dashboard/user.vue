@@ -180,6 +180,51 @@
       </div>
     </div>
 
+    <!-- 新手引导 (空状态时显示) -->
+    <div v-if="stats.file_count === 0" class="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800/50 p-6 relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-blue-200/30 dark:bg-blue-700/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+      <div class="relative z-10">
+        <h3 class="text-lg font-bold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+          <n-icon class="text-blue-500"><RocketOutline /></n-icon>
+          开始使用 DocMind
+        </h3>
+        <p class="text-sm text-blue-700 dark:text-blue-300 mb-5">只需 3 步，即可体验 AI 知识库的强大功能</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+          <div class="flex items-start gap-3 bg-white/60 dark:bg-gray-800/60 rounded-xl p-4">
+            <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
+            <div>
+              <div class="font-semibold text-sm text-gray-900 dark:text-white">上传文档</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">支持 PDF、Word、TXT 等格式，系统自动解析并建立索引</div>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 bg-white/60 dark:bg-gray-800/60 rounded-xl p-4">
+            <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
+            <div>
+              <div class="font-semibold text-sm text-gray-900 dark:text-white">智能搜索</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">混合检索（关键词 + 语义），自动引用来源文档</div>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 bg-white/60 dark:bg-gray-800/60 rounded-xl p-4">
+            <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
+            <div>
+              <div class="font-semibold text-sm text-gray-900 dark:text-white">AI 对话</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">基于文档内容回答，附带 [n] 引用标注，支持多轮对话</div>
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <n-button type="primary" @click="$router.push('/knowledge')" class="shadow-lg shadow-blue-500/25">
+            <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
+            上传第一个文档
+          </n-button>
+          <n-button secondary @click="loadDemoData" :loading="demoLoading">
+            <template #icon><n-icon><SparklesOutline /></n-icon></template>
+            加载示例数据
+          </n-button>
+        </div>
+      </div>
+    </div>
+
     <!-- 快捷操作 -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
       <h3 class="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -211,22 +256,25 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useMessage } from 'naive-ui'
 import { useUserStore } from '@/stores/user'
 import { getUserStats } from '@/api/user'
 import { getConversations, type Conversation } from '@/api/conversation'
 import { getRAGStats } from '@/api/monitoring'
+import { seedDemoData } from '@/api/demo'
 import { formatFileSize, formatDate as formatDateUtil } from '@/utils/format'
 import { CHART_COLORS } from '@/utils/chartTheme'
 import {
   ChatbubbleEllipsesOutline, TextOutline, DocumentOutline,
   ServerOutline, CloudUploadOutline, SearchOutline, TimeOutline,
   ChevronForwardOutline, AnalyticsOutline, TrendingUpOutline, FlashOutline,
-  HardwareChipOutline
+  HardwareChipOutline, RocketOutline, SparklesOutline
 } from '@vicons/ionicons5'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 
 const { t } = useI18n()
+const message = useMessage()
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo)
 
@@ -248,10 +296,30 @@ const ragStats = ref({
 
 const recentConversations = ref<Conversation[]>([])
 const chartRef = ref<HTMLElement | null>(null)
+const demoLoading = ref(false)
 let chart: ECharts | null = null
 
 const formatSize = (bytes: number) => formatFileSize(bytes)
 const formatDate = (date: string) => formatDateUtil(date)
+
+const loadDemoData = async () => {
+  demoLoading.value = true
+  try {
+    const res = await seedDemoData()
+    if (res.data?.success) {
+      message.success('示例数据加载成功！页面即将刷新')
+      // 刷新页面数据
+      setTimeout(() => window.location.reload(), 1000)
+    } else {
+      message.info(res.data?.message || '示例数据已存在')
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { detail?: string } } }
+    message.error(err?.response?.data?.detail || '加载示例数据失败')
+  } finally {
+    demoLoading.value = false
+  }
+}
 
 const initChart = () => {
   if (!chartRef.value) return

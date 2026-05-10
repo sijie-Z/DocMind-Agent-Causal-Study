@@ -1,28 +1,45 @@
-"""
-日志配置模块
-"""
+# -*- coding: utf-8 -*-
+"""结构化日志配置模块"""
 import logging
 import logging.handlers
 import os
 import json
 import time
 import contextvars
+
 from app.core.config import settings
 
+# 请求级上下文变量 — 中间件注入，日志格式化器读取
 request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
+trace_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("trace_id", default=None)
+user_id_var: contextvars.ContextVar[str | int | None] = contextvars.ContextVar("user_id", default=None)
 
 
 class JsonFormatter(logging.Formatter):
+    """JSON 结构化日志格式化器。
+
+    自动注入 request_id / trace_id / user_id（如果中间件已设置）。
+    """
+
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "ts": int(time.time()),
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(record.created)),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
         }
+
         request_id = request_id_var.get()
         if request_id:
             payload["request_id"] = request_id
+
+        trace_id = trace_id_var.get()
+        if trace_id:
+            payload["trace_id"] = trace_id
+
+        user_id = user_id_var.get()
+        if user_id is not None:
+            payload["user_id"] = user_id
 
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
@@ -32,11 +49,10 @@ class JsonFormatter(logging.Formatter):
 
 def setup_logging():
     """设置日志配置"""
-    # 创建日志目录
     log_dir = os.path.dirname(settings.LOG_FILE)
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    
+
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.LOG_LEVEL.upper()))
 
@@ -46,37 +62,31 @@ def setup_logging():
     console_handler = logging.StreamHandler()
     file_handler = logging.handlers.TimedRotatingFileHandler(
         settings.LOG_FILE,
-        when='midnight',
+        when="midnight",
         interval=1,
         backupCount=30,
-        encoding='utf-8'
+        encoding="utf-8",
     )
 
     if getattr(settings, "LOG_JSON", False):
         formatter: logging.Formatter = JsonFormatter()
     else:
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     console_handler.setFormatter(formatter)
     file_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
-    
-    # 设置第三方库的日志级别
-    logging.getLogger('uvicorn').setLevel(logging.INFO)
-    logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
-    logging.getLogger('elasticsearch').setLevel(logging.WARNING)
-    logging.getLogger('redis').setLevel(logging.WARNING)
 
-    # 为 permission_service 模块单独设置日志级别，以便调试RBAC初始化过程
-    logging.getLogger('app.services.permission_service').setLevel(logging.DEBUG)
-    
-    # 创建特定的日志器
-    logger = logging.getLogger('paicongming')
+    # 第三方库静默
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("elasticsearch").setLevel(logging.WARNING)
+    logging.getLogger("redis").setLevel(logging.WARNING)
+
+    logging.getLogger("app.services.permission_service").setLevel(logging.DEBUG)
+
+    logger = logging.getLogger("docmind")
     logger.setLevel(getattr(logging, settings.LOG_LEVEL.upper()))
-    logger.propagate = True # 确保日志事件传播到父日志器
-
-    # 为 permission_service 模块单独设置日志级别，以便调试RBAC初始化过程
-    logging.getLogger('app.services.permission_service').setLevel(logging.DEBUG)
-
+    logger.propagate = True
     logger.info("日志系统初始化完成")

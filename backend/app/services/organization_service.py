@@ -66,51 +66,36 @@ class OrganizationService:
             return []
 
     async def update_organization(self, db: AsyncSession, org_id: int, data: Dict[str, Any]) -> Optional[Organization]:
-        """
-        更新组织信息，自动处理层级变更
-        小白讲解：当一个部门搬到另一个部门下面时，我们会自动计算它现在是第几级。
-        """
-        try:
-            # 1. 获取现有组织
-            result = await db.execute(select(Organization).where(Organization.id == org_id))
-            org = result.scalar_one_or_none()
-            if not org:
-                return None
-            
-            # 2. 检查是否变更了父级
-            old_parent_id = org.parent_id
-            new_parent_id = data.get("parent_id")
-            
-            # 3. 如果父级变了，重新计算 level
-            if "parent_id" in data and new_parent_id != old_parent_id:
-                # 防止循环引用
-                if new_parent_id == org_id:
-                    raise ValueError("不能将组织设置为自己的子组织")
-                
-                level: int = 1
-                if new_parent_id:
-                    parent_result = await db.execute(select(Organization).where(Organization.id == new_parent_id))
-                    parent = parent_result.scalar_one_or_none()
-                    if parent:
-                        level = int(cast(int, parent.level)) + 1
+        """更新组织信息，自动处理层级变更 — 不负责 commit，由调用方管理事务"""
+        result = await db.execute(select(Organization).where(Organization.id == org_id))
+        org = result.scalar_one_or_none()
+        if not org:
+            return None
 
-                org.level = int(level)  # type: ignore
-                # 递归更新所有子组织的 level
-                await self._update_children_levels(db, org)
-            
-            # 4. 更新其他字段
-            for field, value in data.items():
-                if hasattr(org, field):
-                    setattr(org, field, value)
-            
-            await db.commit()
-            await db.refresh(org)
-            return org
-            
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"更新组织失败: {str(e)}")
-            raise
+        old_parent_id = org.parent_id
+        new_parent_id = data.get("parent_id")
+
+        if "parent_id" in data and new_parent_id != old_parent_id:
+            if new_parent_id == org_id:
+                raise ValueError("不能将组织设置为自己的子组织")
+
+            level: int = 1
+            if new_parent_id:
+                parent_result = await db.execute(select(Organization).where(Organization.id == new_parent_id))
+                parent = parent_result.scalar_one_or_none()
+                if parent:
+                    level = int(cast(int, parent.level)) + 1
+
+            org.level = int(level)
+            await self._update_children_levels(db, org)
+
+        for field, value in data.items():
+            if hasattr(org, field):
+                setattr(org, field, value)
+
+        await db.flush()
+        await db.refresh(org)
+        return org
 
     async def _update_children_levels(self, db: AsyncSession, parent_org: Organization):
         """递归更新子组织的层级"""
@@ -147,44 +132,36 @@ class OrganizationService:
         }
 
     async def create_organization(self, db: AsyncSession, data: Dict, owner_id: int) -> Organization:
-        """
-        创建新组织
-        """
-        try:
-            # 处理层级
-            level = 1
-            if data.get("parent_id"):
-                parent_result = await db.execute(select(Organization).where(Organization.id == data["parent_id"]))
-                parent = parent_result.scalar_one_or_none()
-                if parent:
-                    level = int(cast(int, parent.level)) + 1
+        """创建新组织 — 不负责 commit，由调用方管理事务"""
+        level = 1
+        if data.get("parent_id"):
+            parent_result = await db.execute(select(Organization).where(Organization.id == data["parent_id"]))
+            parent = parent_result.scalar_one_or_none()
+            if parent:
+                level = int(cast(int, parent.level)) + 1
 
-            organization = Organization(
-                name=data["name"],
-                description=data.get("description"),
-                color=data.get("color", "#18a058"),
-                parent_id=data.get("parent_id"),
-                level=level,  # type: ignore
-                sort_order=data.get("sort_order", 0),
-                owner_id=owner_id,
-                is_private=data.get("is_private", False)
-            )
-            
-            db.add(organization)
-            await db.commit()
-            await db.refresh(organization)
-            
-            # 自动将所有者添加为成员
-            user_result = await db.execute(select(User).where(User.id == owner_id))
-            user = user_result.scalar_one_or_none()
-            if user:
-                await self.add_user_to_organization(db, user, organization)
-                
-            return organization
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"创建组织失败: {str(e)}")
-            raise
+        organization = Organization(
+            name=data["name"],
+            description=data.get("description"),
+            color=data.get("color", "#18a058"),
+            parent_id=data.get("parent_id"),
+            level=level,
+            sort_order=data.get("sort_order", 0),
+            owner_id=owner_id,
+            is_private=data.get("is_private", False)
+        )
+
+        db.add(organization)
+        await db.flush()
+        await db.refresh(organization)
+
+        # 自动将所有者添加为成员
+        user_result = await db.execute(select(User).where(User.id == owner_id))
+        user = user_result.scalar_one_or_none()
+        if user:
+            await self.add_user_to_organization(db, user, organization)
+
+        return organization
 
     async def get_org_stats(self, db: AsyncSession, org_id: int) -> Dict:
         """获取组织统计数据"""
@@ -212,30 +189,18 @@ class OrganizationService:
             return {"member_count": 0, "document_count": 0}
 
     async def delete_organization_thoroughly(self, db: AsyncSession, org_id: int) -> bool:
-        """
-        彻底删除组织及其所有子组织（递归删除）
-        """
-        try:
-            # 1. 获取组织及其所有子组织ID
-            orgs_to_delete = await self._get_all_children_ids(db, org_id)
-            orgs_to_delete.append(org_id)
-            
-            # 2. 删除成员关联
-            await db.execute(
-                delete(user_organization).where(user_organization.c.organization_id.in_(orgs_to_delete))
-            )
-            
-            # 3. 删除组织本身
-            await db.execute(
-                delete(Organization).where(Organization.id.in_(orgs_to_delete))
-            )
-            
-            await db.commit()
-            return True
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"彻底删除组织失败: {str(e)}")
-            return False
+        """彻底删除组织及其所有子组织 — 不负责 commit，由调用方管理事务"""
+        orgs_to_delete = await self._get_all_children_ids(db, org_id)
+        orgs_to_delete.append(org_id)
+
+        await db.execute(
+            delete(user_organization).where(user_organization.c.organization_id.in_(orgs_to_delete))
+        )
+        await db.execute(
+            delete(Organization).where(Organization.id.in_(orgs_to_delete))
+        )
+        await db.flush()
+        return True
 
     async def _get_all_children_ids(self, db: AsyncSession, parent_id: int) -> List[int]:
         """递归获取所有子组织ID"""
@@ -251,46 +216,28 @@ class OrganizationService:
         return all_ids
 
     async def create_private_organization(self, db: AsyncSession, user: User) -> Organization:
-        """
-        为用户创建私有组织标签
-        
-        Args:
-            db: 数据库会话
-            user: 用户对象
-            
-        Returns:
-            创建的私有组织
-        """
-        try:
-            # 创建私有组织，格式为 PRIVATE_username
-            org_name = f"PRIVATE_{user.username}"
-            
-            # 检查是否已存在
-            existing = await self.get_organization_by_name(db, org_name)
-            if existing:
-                return existing
+        """为用户创建私有组织标签 — 不负责 commit，由调用方管理事务"""
+        org_name = f"PRIVATE_{user.username}"
 
-            organization = Organization(
-                name=org_name,
-                description=f"{user.username} 的私有组织",
-                is_private=True,
-                owner_id=user.id
-            )
-            
-            db.add(organization)
-            await db.commit()
-            await db.refresh(organization)
-            
-            # 添加用户为成员
-            await self.add_user_to_organization(db, user, organization)
-            
-            logger.info(f"为用户 {user.username} 创建私有组织: {org_name}")
-            return organization
-            
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"创建私有组织失败: {str(e)}")
-            raise
+        existing = await self.get_organization_by_name(db, org_name)
+        if existing:
+            return existing
+
+        organization = Organization(
+            name=org_name,
+            description=f"{user.username} 的私有组织",
+            is_private=True,
+            owner_id=user.id
+        )
+
+        db.add(organization)
+        await db.flush()
+        await db.refresh(organization)
+
+        await self.add_user_to_organization(db, user, organization)
+
+        logger.info(f"为用户 {user.username} 创建私有组织: {org_name}")
+        return organization
     
     async def get_organization_by_name(self, db: AsyncSession, name: str) -> Optional[Organization]:
         """根据名称获取组织"""
@@ -302,34 +249,26 @@ class OrganizationService:
             return None
     
     async def add_user_to_organization(self, db: AsyncSession, user: User, organization: Organization) -> bool:
-        """
-        添加用户到组织
-        """
-        try:
-            # 检查是否已经是成员
-            result = await db.execute(
-                select(user_organization)
-                .where(and_(
-                    user_organization.c.user_id == user.id,
-                    user_organization.c.organization_id == organization.id
-                ))
-            )
-            if result.scalar_one_or_none():
-                return False
-
-            await db.execute(
-                user_organization.insert().values(
-                    user_id=user.id,
-                    organization_id=organization.id
-                )
-            )
-            await db.commit()
-            logger.info(f"将用户 {user.username} 添加到组织 {organization.name}")
-            return True
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"添加用户到组织失败: {str(e)}")
+        """添加用户到组织 — 不负责 commit，由调用方管理事务"""
+        result = await db.execute(
+            select(user_organization)
+            .where(and_(
+                user_organization.c.user_id == user.id,
+                user_organization.c.organization_id == organization.id
+            ))
+        )
+        if result.scalar_one_or_none():
             return False
+
+        await db.execute(
+            user_organization.insert().values(
+                user_id=user.id,
+                organization_id=organization.id
+            )
+        )
+        await db.flush()
+        logger.info(f"将用户 {user.username} 添加到组织 {organization.name}")
+        return True
     
     async def get_user_organizations(self, db: AsyncSession, user: User) -> List[Organization]:
         """获取用户的所有组织"""

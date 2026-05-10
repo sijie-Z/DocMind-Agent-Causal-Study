@@ -14,6 +14,23 @@ from app.rag.context_compressor import compress_context_list
 from app.rag.cache import RetrievalCache, SemanticCache
 from app.rag.metrics import RAGMetrics
 from app.rag.query_processor import QueryIntentClassifier
+from app.core.prometheus import (
+    RAG_RETRIEVAL_TOTAL,
+    RAG_RETRIEVAL_HITS,
+    RAG_RETRIEVAL_ERRORS,
+    RAG_RETRIEVAL_LATENCY,
+    RAG_CACHE_HITS,
+    RAG_CACHE_MISSES,
+    RAG_GROUNDED_TOTAL,
+    RAG_GROUNDED_HITS,
+    LLM_REQUEST_TOTAL,
+    LLM_REQUEST_ERRORS,
+    LLM_TOKENS,
+    LLM_LATENCY,
+    RAG_PIPELINE_IN_FLIGHT,
+    RAG_QUERY_INTENT,
+)
+from app.core.circuit_breaker import ai_service_breaker, es_service_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -48,80 +65,103 @@ class RAGPipeline:
     ) -> List[Dict[str, Any]]:
         """Retrieve relevant documents with caching and retry."""
         start = time.perf_counter()
+        RAG_RETRIEVAL_TOTAL.inc()
+        RAG_PIPELINE_IN_FLIGHT.inc()
         self.metrics.inc("retrieval_total")
         self.metrics.record_event("retrieval", 1)
 
-        # Exact cache (skip for document-specific queries)
-        if not document_ids:
-            cached = await self.cache.get(query, organization_id, top_k)
-            if cached is not None:
-                self.metrics.inc("cache_hit")
-                self.metrics.record_event("cache_hit", 1)
-                if cached:
-                    self.metrics.inc("retrieval_hit")
-                    self.metrics.record_event("retrieval_hit", 1)
-                elapsed = (time.perf_counter() - start) * 1000
-                self.metrics.inc("latency_count")
-                self.metrics.record_event("latency", elapsed)
-                return cached
-
-        # Semantic cache
-        query_vector = None
-        if not document_ids:
-            query_vector = await self.get_embedding(query)
-            if query_vector:
-                sem_cached = await self.semantic_cache.get(query_vector)
-                if sem_cached:
-                    self.metrics.inc("semantic_cache_hit")
+        try:
+            # Exact cache (skip for document-specific queries)
+            if not document_ids:
+                cached = await self.cache.get(query, organization_id, top_k)
+                if cached is not None:
+                    RAG_CACHE_HITS.labels(cache_type="exact").inc()
                     self.metrics.inc("cache_hit")
-                    if sem_cached:
+                    self.metrics.record_event("cache_hit", 1)
+                    if cached:
+                        RAG_RETRIEVAL_HITS.inc()
                         self.metrics.inc("retrieval_hit")
+                        self.metrics.record_event("retrieval_hit", 1)
+                    else:
+                        RAG_CACHE_MISSES.inc()
                     elapsed = (time.perf_counter() - start) * 1000
+                    RAG_RETRIEVAL_LATENCY.observe(time.perf_counter() - start)
                     self.metrics.inc("latency_count")
                     self.metrics.record_event("latency", elapsed)
-                    if not document_ids:
-                        await self.cache.set(query, organization_id, top_k, sem_cached)
-                    return sem_cached
+                    return cached
+                else:
+                    RAG_CACHE_MISSES.inc()
 
-        # Retrieve with retry
-        retries = max(0, int(settings.RAG_RETRIEVAL_MAX_RETRIES or 2))
-        result = []
-        for attempt in range(retries + 1):
-            try:
-                if attempt > 0:
-                    self.metrics.inc("retry_total")
-                result, qv = await self.retriever.retrieve(query, organization_id, top_k, document_ids)
-                if not query_vector and qv:
-                    query_vector = qv
-                break
-            except Exception as e:
-                logger.warning(f"Retrieval attempt {attempt + 1}/{retries + 1} failed: {e}")
-                if attempt < retries:
-                    await asyncio.sleep(min(1.5, 0.3 * (2 ** attempt)))
+            # Semantic cache
+            query_vector = None
+            if not document_ids:
+                query_vector = await self.get_embedding(query)
+                if query_vector:
+                    sem_cached = await self.semantic_cache.get(query_vector)
+                    if sem_cached:
+                        RAG_CACHE_HITS.labels(cache_type="semantic").inc()
+                        self.metrics.inc("semantic_cache_hit")
+                        self.metrics.inc("cache_hit")
+                        if sem_cached:
+                            RAG_RETRIEVAL_HITS.inc()
+                            self.metrics.inc("retrieval_hit")
+                        elapsed = (time.perf_counter() - start) * 1000
+                        RAG_RETRIEVAL_LATENCY.observe(time.perf_counter() - start)
+                        self.metrics.inc("latency_count")
+                        self.metrics.record_event("latency", elapsed)
+                        if not document_ids:
+                            await self.cache.set(query, organization_id, top_k, sem_cached)
+                        return sem_cached
 
-        if not document_ids:
-            await self.cache.set(query, organization_id, top_k, result)
-        if query_vector and result:
-            await self.semantic_cache.set(query, query_vector, "", result)
+            # Retrieve with retry
+            retries = max(0, int(settings.RAG_RETRIEVAL_MAX_RETRIES or 2))
+            result = []
+            for attempt in range(retries + 1):
+                try:
+                    if attempt > 0:
+                        self.metrics.inc("retry_total")
+                    result, qv = await self.retriever.retrieve(query, organization_id, top_k, document_ids)
+                    if not query_vector and qv:
+                        query_vector = qv
+                    break
+                except Exception as e:
+                    RAG_RETRIEVAL_ERRORS.inc()
+                    logger.warning(f"Retrieval attempt {attempt + 1}/{retries + 1} failed: {e}")
+                    if attempt < retries:
+                        await asyncio.sleep(min(1.5, 0.3 * (2 ** attempt)))
 
-        if result:
-            self.metrics.inc("retrieval_hit")
-            self.metrics.record_event("retrieval_hit", 1)
-        elapsed = (time.perf_counter() - start) * 1000
-        self.metrics.inc("latency_count")
-        self.metrics.record_event("latency", elapsed)
-        return result
+            if not document_ids:
+                await self.cache.set(query, organization_id, top_k, result)
+            if query_vector and result:
+                await self.semantic_cache.set(query, query_vector, "", result)
+
+            if result:
+                RAG_RETRIEVAL_HITS.inc()
+                self.metrics.inc("retrieval_hit")
+                self.metrics.record_event("retrieval_hit", 1)
+            elapsed = (time.perf_counter() - start) * 1000
+            RAG_RETRIEVAL_LATENCY.observe(time.perf_counter() - start)
+            self.metrics.inc("latency_count")
+            self.metrics.record_event("latency", elapsed)
+            return result
+        finally:
+            RAG_PIPELINE_IN_FLIGHT.dec()
 
     # ---- Groundedness reporting ----
 
     def report_grounded(self, has_sources: bool) -> None:
+        RAG_GROUNDED_TOTAL.inc()
         self.metrics.inc("grounded_total")
         self.metrics.record_event("grounded", 1)
         if has_sources:
+            RAG_GROUNDED_HITS.inc()
             self.metrics.inc("grounded_hit")
             self.metrics.record_event("grounded_hit", 1)
 
     def report_tokens(self, input_tokens: int, output_tokens: int) -> None:
+        LLM_TOKENS.labels(direction="input").inc(input_tokens)
+        LLM_TOKENS.labels(direction="output").inc(output_tokens)
+        LLM_REQUEST_TOTAL.inc()
         self.metrics.inc("total_input_tokens", input_tokens)
         self.metrics.inc("total_output_tokens", output_tokens)
         self.metrics.inc("llm_request_count")
@@ -165,6 +205,7 @@ class RAGPipeline:
 
         # Intent-based guidance
         intent = QueryIntentClassifier.classify(query)
+        RAG_QUERY_INTENT.labels(intent=intent).inc()
         intent_guidance = {
             "factual": "请以事实陈述的方式回答，准确引用来源。",
             "procedural": "请按步骤清晰说明操作流程。",
@@ -187,12 +228,20 @@ class RAGPipeline:
             "5. **拒绝臆测**：严禁引用训练数据中的外部知识补充文档缺失部分。"
         )
 
-        messages: List[ChatCompletionMessageParam] = [
-            {"role": "system", "content": system_prompt},
-            *cast(List[ChatCompletionMessageParam], (history or [])[-8:]),
-            {"role": "user", "content": f"【参考文档】：\n{context_str}\n\n【问题】：{query}"},
-        ]
+        # Build token-budget-aware message list
+        from app.rag.context_window import build_rag_messages
+        raw_messages = build_rag_messages(
+            system_prompt=system_prompt,
+            context_docs=context_str,
+            history=history or [],
+            user_query=query,
+            max_tokens=settings.AI_MAX_TOKENS,
+        )
+        messages: List[ChatCompletionMessageParam] = cast(
+            List[ChatCompletionMessageParam], raw_messages
+        )
 
+        llm_start = time.perf_counter()
         try:
             model = settings.LOCAL_LLM_MODEL if settings.ENABLE_LOCAL_LLM else settings.DEEPSEEK_MODEL
             stream = await self.openai_client.chat.completions.create(
@@ -201,10 +250,14 @@ class RAGPipeline:
                 timeout=settings.AI_STREAM_TIMEOUT,
             )
             full_response = ""
+            first_token = True
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     content = chunk.choices[0].delta.content
                     full_response += content
+                    if first_token:
+                        LLM_LATENCY.observe(time.perf_counter() - llm_start)
+                        first_token = False
                     yield content
 
             # Token estimation
@@ -218,4 +271,5 @@ class RAGPipeline:
                 logger.info("PII masking: response unmasked")
 
         except Exception as e:
+            LLM_REQUEST_ERRORS.inc()
             yield f"LLM Error: {e}"

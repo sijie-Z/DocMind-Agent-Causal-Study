@@ -214,11 +214,19 @@ export function useChatSend(
     if (e.key === 'Enter' && !e.shiftKey) handleSend()
   }
 
+  const regenerateMessage = async (previousUserMessage: string) => {
+    if (!previousUserMessage || isLoading.value) return
+    inputMessage.value = previousUserMessage
+    await handleSend()
+  }
+
   return {
     inputMessage,
     strictMode,
     privacyMode,
     handleSend,
-    handleKeydown
+    handleSSESend,
+    handleKeydown,
+    regenerateMessage
   }
 }

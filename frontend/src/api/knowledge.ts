@@ -123,3 +123,26 @@ export const rebuildKnowledgeBase = async (id: string): Promise<AxiosResponse<Ap
 export const searchKnowledgeBases = async (query: string): Promise<AxiosResponse<{ data: KnowledgeBase[] }>> => {
   return request.get('/knowledge/search', { params: { q: query } })
 }
+
+export interface GraphNode {
+  id: string
+  type: string
+  description: string
+  occurrences: number
+}
+
+export interface GraphEdge {
+  source: string
+  target: string
+  relation: string
+}
+
+export interface GraphData {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  analytics: Record<string, unknown>
+}
+
+export const getKnowledgeGraph = async (query?: string, maxNodes?: number): Promise<AxiosResponse<{ data: GraphData }>> => {
+  return request.get('/knowledge/graph', { params: { query, max_nodes: maxNodes } })
+}
