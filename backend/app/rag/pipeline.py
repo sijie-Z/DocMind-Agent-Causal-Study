@@ -222,16 +222,31 @@ class RAGPipeline:
             "other": "请基于文档内容回答。",
         }.get(intent, "请基于文档内容回答。")
 
-        system_prompt = system_prompt_override or (
-            "你是企业知识库问答助手。你的任务是基于提供的【参考文档】提供准确、客观的回答。\n"
-            f"📌 回答指导: {intent_guidance}\n"
-            "⚠️ 核心约束：\n"
-            "1. **严格忠于原文**：只能根据提供的【参考文档】回答。如果文档中没有相关信息，必须明确告知用户。\n"
-            "2. **精准引用**：使用 [n] 格式标注引用来源。\n"
-            "3. **结构化输出**：多使用分点列表（Markdown 格式）。\n"
-            "4. **语言要求**：始终使用【简体中文】回答。\n"
-            "5. **拒绝臆测**：严禁引用训练数据中的外部知识补充文档缺失部分。"
-        )
+        has_context = bool(compressed)
+        if system_prompt_override:
+            system_prompt = system_prompt_override
+        elif has_context:
+            system_prompt = (
+                "你是企业知识库问答助手。你的任务是基于提供的【参考文档】提供准确、客观的回答。\n"
+                f"📌 回答指导: {intent_guidance}\n"
+                "⚠️ 核心约束：\n"
+                "1. **严格忠于原文**：优先根据提供的【参考文档】回答。\n"
+                "2. **精准引用**：使用 [n] 格式标注引用来源。\n"
+                "3. **结构化输出**：多使用分点列表（Markdown 格式）。\n"
+                "4. **语言要求**：始终使用【简体中文】回答。\n"
+                "5. **拒绝臆测**：严禁引用训练数据中的外部知识补充文档缺失部分。"
+            )
+        else:
+            system_prompt = (
+                "你是 DocMind 智能助手。\n"
+                "知识库中没有找到与该问题相关的文档。\n"
+                "请用你自身的知识回答用户的问题，并在回答开头说明：「知识库中暂无相关文档，以下回答基于通用知识：」\n"
+                f"📌 回答指导: {intent_guidance}\n"
+                "⚠️ 约束：\n"
+                "1. 使用【简体中文】回答。\n"
+                "2. 结构化输出，多使用分点列表。\n"
+                "3. 如果问题涉及专业领域，注明建议用户上传相关文档以获得更精准的回答。"
+            )
 
         # Build token-budget-aware message list
         from app.rag.context_window import build_rag_messages
