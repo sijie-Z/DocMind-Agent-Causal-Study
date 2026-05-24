@@ -5,6 +5,8 @@ import 'virtual:uno.css'
 import VueVirtualScroller from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
+import naive from 'naive-ui'
+
 import App from './App.vue'
 import router from './router'
 import { setRouter } from './utils/request'
@@ -20,5 +22,6 @@ const app = createApp(App)
 app.use(pinia)
 app.use(router)
 app.use(i18n)
+app.use(naive)
 app.use(VueVirtualScroller)
 app.mount('#app')
