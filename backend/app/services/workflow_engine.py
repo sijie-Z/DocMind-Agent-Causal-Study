@@ -60,9 +60,9 @@ class NodeExecutor:
     def __init__(self, node: WorkflowNode, config: dict[str, Any] = None):
         self.node = node
         self.config = config or {}
-        self.llm_config = config.get("llm", {})
-        self.max_retries = config.get("max_retries", 3)
-        self.retry_delay = config.get("retry_delay", 1.0)
+        self.llm_config = self.config.get("llm", {})
+        self.max_retries = self.config.get("max_retries", 3)
+        self.retry_delay = self.config.get("retry_delay", 1.0)
 
     async def execute(self, state: WorkflowState) -> dict[str, Any]:
         """执行节点逻辑"""
