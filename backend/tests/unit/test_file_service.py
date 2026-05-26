@@ -1,14 +1,13 @@
 """File service unit tests — validation, hashing, MIME checks."""
 import hashlib
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import HTTPException
 
-from app.services.file_service import FileUploadService, _ALLOWED_MIME_TYPES
 from app.exceptions import ValidationError
-
+from app.services.file_service import _ALLOWED_MIME_TYPES, FileUploadService
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -155,7 +154,7 @@ class TestDeleteFile:
         mock_path_instance.is_file.return_value = True
         mock_path_cls.return_value = mock_path_instance
 
-        with patch("app.services.file_service.os") as mock_os:
+        with patch("app.services.file_service.os"):
             result = await svc.delete_file("documents/test.pdf")
             assert result is True
             mock_minio.remove_object.assert_called_once()
@@ -218,7 +217,8 @@ class TestCheckAllChunks:
         chunk_files = {i: MagicMock() for i in range(3)}
         mock_dir.__truediv__ = lambda self, name: chunk_files.get(int(name.split("_")[1]), MagicMock(exists=lambda: False))
         # Simplified: use real Path with tmp
-        import tempfile, os
+        import os
+        import tempfile
         tmpdir = tempfile.mkdtemp()
         for i in range(3):
             open(os.path.join(tmpdir, f"chunk_{i}"), "w").close()
@@ -227,7 +227,8 @@ class TestCheckAllChunks:
 
     @pytest.mark.asyncio
     async def test_missing_chunk(self, svc):
-        import tempfile, os
+        import os
+        import tempfile
         tmpdir = tempfile.mkdtemp()
         # Only create 2 of 3 chunks
         for i in range(2):

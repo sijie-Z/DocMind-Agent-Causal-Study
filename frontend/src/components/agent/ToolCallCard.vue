@@ -61,6 +61,7 @@ const statusIcon = computed(() => {
     case 'loading': return '⏳'
     case 'success': return '✅'
     case 'error': return '❌'
+    default: return ''
   }
 })
 

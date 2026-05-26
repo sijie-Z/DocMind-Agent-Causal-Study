@@ -1,7 +1,8 @@
 """SemanticChunker unit tests — sentence splitting, short text, merge logic."""
-import pytest
+from unittest.mock import AsyncMock, patch
+
 import numpy as np
-from unittest.mock import patch, AsyncMock
+import pytest
 
 from app.services.semantic_chunker import SemanticChunker
 

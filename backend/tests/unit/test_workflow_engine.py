@@ -1,24 +1,24 @@
 """Workflow engine unit tests — node executors, conditions, transforms, routing."""
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 from langchain_core.messages import AIMessage, HumanMessage
 
+from app.schemas.workflow import WorkflowConfig, WorkflowNode
 from app.services.workflow_engine import (
+    CodeExecuteNodeExecutor,
+    ConditionNodeExecutor,
     ExecutionStatus,
+    InputNodeExecutor,
+    OutputNodeExecutor,
+    RouterNodeExecutor,
+    TransformNodeExecutor,
+    TTSNodeExecutor,
+    WorkflowEngine,
     WorkflowState,
     merge_dicts,
     merge_lists,
-    InputNodeExecutor,
-    OutputNodeExecutor,
-    ConditionNodeExecutor,
-    TTSNodeExecutor,
-    TransformNodeExecutor,
-    RouterNodeExecutor,
-    CodeExecuteNodeExecutor,
-    WorkflowEngine,
 )
-from app.schemas.workflow import WorkflowNode, WorkflowConfig
-
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
