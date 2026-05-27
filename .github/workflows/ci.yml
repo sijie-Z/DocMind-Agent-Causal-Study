@@ -161,3 +161,15 @@ jobs:
         run: |
           pip install safety
           safety check -r requirements.txt || true
+
+  ci-pass:
+    name: CI Pass
+    if: always()
+    needs: [backend-tests, frontend-tests, docker-build, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs
+        run: |
+          if [ "${{ needs.backend-tests.result }}" != "success" ]; then echo "backend-tests failed"; exit 1; fi
+          if [ "${{ needs.frontend-tests.result }}" != "success" ]; then echo "frontend-tests failed"; exit 1; fi
+          echo "All CI checks passed!"
