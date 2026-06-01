@@ -109,9 +109,20 @@ class KnowledgeService:
                 top_k=top_k,
             )
 
+            # DEBUG: log result types
+            logger.warning(f"[DEBUG] results type={type(results).__name__}")
+            if isinstance(results, list):
+                types = set(type(r).__name__ for r in results)
+                logger.warning(f"[DEBUG] results types={types}")
+                for i, r in enumerate(results[:5]):
+                    logger.warning(f"[DEBUG]   [{i}] type={type(r).__name__} val={repr(r)[:200]}")
+
             # 格式化为 KnowledgeService 期望的输出格式以保持兼容性
             formatted_results = []
             for res in results:
+                if not isinstance(res, dict):
+                    logger.warning(f"search_knowledge: skipping non-dict result: {type(res).__name__}")
+                    continue
                 formatted_results.append({
                     "id": res.get("document_id"),
                     "text": res.get("text"),

@@ -108,9 +108,9 @@ class RAGPipeline:
                         RAG_RETRIEVAL_LATENCY.observe(time.perf_counter() - start)
                         self.metrics.inc("latency_count")
                         self.metrics.record_event("latency", elapsed)
-                        if not document_ids:
-                            await self.cache.set(query, organization_id, top_k, sem_cached)
-                        return sem_cached
+                        if not document_ids and sem_cached.get("sources"):
+                            await self.cache.set(query, organization_id, top_k, sem_cached["sources"])
+                        return sem_cached.get("sources", [])
 
                 # Query decomposition for complex queries
             sub_queries = [query]
