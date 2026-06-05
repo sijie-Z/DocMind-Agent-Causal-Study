@@ -25,8 +25,8 @@ def _get_cross_encoder(model_name: str | None = None):
     """
     model_name = model_name or getattr(settings, "RERANK_LOCAL_MODEL", "BAAI/bge-reranker-base")
     try:
-        from sentence_transformers import CrossEncoder
         import torch
+        from sentence_transformers import CrossEncoder
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info("Loading local cross-encoder reranker: %s (device=%s)", model_name, device)
@@ -64,7 +64,7 @@ async def _rerank_local(query: str, candidates: list[dict], top_n: int) -> list[
         return None
 
     # Pair scores back to candidates & sort descending
-    scored = list(zip(candidates, scores))
+    scored = list(zip(candidates, scores, strict=False))
     scored.sort(key=lambda x: x[1], reverse=True)
 
     result = [h for h, _ in scored[:top_n]]

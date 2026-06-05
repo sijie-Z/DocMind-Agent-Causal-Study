@@ -184,13 +184,8 @@ class PERAgentLoop:
 
         # If we have substantial output AND the next steps are just more of the same
         # (no new tool types), skip to avoid redundancy
-        if has_data and len(final_output) > 300:
-            remaining_tools = {s.tool_hint for s in remaining_steps if s.tool_hint}
-            # If remaining steps have no new tool types compared to what we've already done,
-            # they're unlikely to add new information
-            return False
-
-        return True
+        # If we have substantial output AND remaining steps add no new tool types, skip
+        return not (has_data and len(final_output) > 300)
 
     async def run(
         self,

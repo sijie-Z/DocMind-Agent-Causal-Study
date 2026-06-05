@@ -1,7 +1,6 @@
 """语义分块器：使用 Embedding 相似度在语义断点处切分文本，融合条款感知切分策略。"""
 import logging
 import re
-from typing import Optional
 
 import numpy as np
 
@@ -27,7 +26,7 @@ PARAGRAPH_SEPARATORS = ['\n\n\n', '\n\n', '\r\n\r\n']
 SENTENCE_SEPARATORS = ['。', '！', '？', '；', '\n']
 
 
-def detect_section_title(line: str) -> Optional[str]:
+def detect_section_title(line: str) -> str | None:
     """检测一行文本是否为章节标题，返回标题文本（去除标记符号），否则返回 None."""
     stripped = line.strip()
     for pat in CLAUSE_PATTERNS:
@@ -140,7 +139,7 @@ class SemanticChunker:
         # 1. 检测条款边界
         clause_boundaries = find_clause_boundaries(text)
         # 2. 先按条款分区，再对每个长分区做语义切分
-        partitions: list[tuple[int, int, Optional[str]]] = []  # (start, end, section_title)
+        partitions: list[tuple[int, int, str | None]] = []  # (start, end, section_title)
         sorted_bounds = clause_boundaries
         if 0 not in sorted_bounds:
             sorted_bounds.insert(0, 0)
@@ -168,9 +167,7 @@ class SemanticChunker:
                 global_idx += 1
 
         # 4. 合并过小的尾块
-        merged = self._merge_small_tails(all_chunks)
-
-        return merged
+        return self._merge_small_tails(all_chunks)
 
     async def _semantic_split(self, text: str) -> list[dict]:
         """对一段文本做基于 Embedding 余弦距离的语义切分。"""

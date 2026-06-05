@@ -20,12 +20,11 @@ from app.core.database import AsyncSessionLocal, close_db, init_db
 from app.core.elasticsearch import es_client, init_elasticsearch
 from app.core.kafka_client import kafka_producer
 from app.core.logging import setup_logging
-from app.core.middleware import PerformanceMiddleware, RateLimitMiddleware, metrics_collector
+from app.core.middleware import metrics_collector
 from app.core.minio_client import minio_client
 from app.core.notification_ws import notification_ws_manager
 from app.core.redis import close_redis, init_redis
 from app.core.request_id import RequestIDMiddleware
-from app.core.response_middleware import ResponseFormatMiddleware
 from app.core.tracing import setup_opentelemetry
 from app.exceptions import AppError
 

@@ -142,7 +142,7 @@ class HybridRetriever:
                     generate_hyde_doc(query, intent, self.openai_client, settings.DEEPSEEK_MODEL),
                     timeout=1.5,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("HyDE generation timed out, skipping")
             except Exception as e:
                 logger.warning(f"HyDE generation failed: {e}")

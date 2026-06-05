@@ -28,7 +28,11 @@ from app.core.prometheus import (
 from app.rag.cache import RetrievalCache, SemanticCache
 from app.rag.context_compressor import compress_context_list
 from app.rag.metrics import RAGMetrics
-from app.rag.query_processor import QueryComplexityClassifier, QueryIntentClassifier, decompose_query
+from app.rag.query_processor import (
+    QueryComplexityClassifier,
+    QueryIntentClassifier,
+    decompose_query,
+)
 from app.rag.reranker import rerank
 from app.rag.retriever import HybridRetriever
 

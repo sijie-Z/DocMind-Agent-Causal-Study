@@ -10,7 +10,6 @@ Two-layer design:
 """
 
 import logging
-import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -132,7 +131,7 @@ def quality_gate_check(
     failed = sum(1 for g, _ in grades.values() if g == "F")
 
     summary_lines = [
-        f"## 质量门控结果\n",
+        "## 质量门控结果\n",
         f"**总计**: {total} 步 | ✅ {passed} 通过 | ⚠️ {concerns} 需关注 | ❌ {failed} 未通过\n",
     ]
     for step_id, (grade, detail) in grades.items():

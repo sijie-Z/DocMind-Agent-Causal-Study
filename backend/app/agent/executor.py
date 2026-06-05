@@ -545,7 +545,8 @@ class Executor:
             return
 
         # Compute fingerprint: hash of normalized first 300 chars + any numbers found
-        import hashlib, re
+        import hashlib
+        import re
 
         normalized = step_result.strip().lower()[:300]
         numbers = re.findall(r"\b\d+(?:\.\d+)?%?", step_result)
