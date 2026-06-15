@@ -1,0 +1,25 @@
+{
+  "question_id": "L2-RECOV-01",
+  "grade": "failure",
+  "category": "tool_recovery",
+  "question": "搜索一个完全不存在的文档 ID fake_404_doc，看看有什么结果。",
+  "difficulty": "easy",
+  "expected_keywords": [
+    "不存在",
+    "未找到"
+  ],
+  "actual_answer": "非常抱歉，我目前无法获取该文档的信息，因为系统内部出现了一个技术问题（数据库映射初始化失败）。请稍后重试，或联系技术支持查看系统配置。",
+  "keyword_coverage": 0.0,
+  "keywords_found": [],
+  "keywords_missed": [
+    "不存在",
+    "未找到"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 15.097603599991999,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:50:37",
+  "failure_cause": "UNKNOWN"
+}

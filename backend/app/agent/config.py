@@ -40,6 +40,7 @@ class AgentConfig:
     enable_tools: bool = True
     enable_memory: bool = True
     enable_thinking: bool = True
+    enable_experience: bool = True  # Self-Improving: learn from past failures
 
     # ── Tool filtering ──
     tool_tags: list[str] | None = None
@@ -88,6 +89,7 @@ class AgentConfig:
             "enable_tools": self.enable_tools,
             "enable_memory": self.enable_memory,
             "enable_thinking": self.enable_thinking,
+            "enable_experience": self.enable_experience,
             "tool_tags": self.tool_tags,
             "disabled_tools": self.disabled_tools,
             "system_prompt_override": self.system_prompt_override,

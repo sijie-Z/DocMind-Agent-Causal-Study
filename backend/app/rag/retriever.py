@@ -420,13 +420,16 @@ class HybridRetriever:
         organization_id: int,
         top_k: int = 5,
         document_ids: list[str] | None = None,
-    ) -> tuple[list[dict], list[float]]:
-        """Execute adaptive retrieval and return (results, query_vector).
+        debug: bool = False,
+    ) -> tuple[list[dict], list[float], dict | None]:
+        """Execute adaptive retrieval and return (results, query_vector, debug_info).
 
         Strategy is selected automatically based on query complexity:
         - keyword_only: fast keyword search, no embedding calls
         - hybrid: keyword + vector (default)
         - hybrid_hyde: keyword + vector + HyDE + multi-rewrite (full pipeline)
+
+        When debug=True, returns intermediate retrieval results for visualization.
         """
         org_filter = {"term": {"organization_id": str(organization_id)}}
         filters = [org_filter]
@@ -442,31 +445,46 @@ class HybridRetriever:
         RAG_ADAPTIVE_STRATEGY.labels(strategy=strategy).inc()
         logger.info(f"Adaptive RAG: query='{query[:50]}...' → strategy={strategy}")
 
+        debug_info = {"strategy": strategy, "query": query} if debug else None
+
         if strategy == "keyword_only":
-            # Fast path: keyword search only, skip embedding
             kw_hits = await self._keyword_hits(query, filters, candidate_size)
+            if debug and debug_info is not None:
+                debug_info["keyword_top"] = self._debug_format_hits(kw_hits[:10])
+                debug_info["vector_top"] = []
+                debug_info["rrf_result"] = debug_info["keyword_top"][:top_k]
+                debug_info["rerank_result"] = []
             documents = self._post_process(query, kw_hits, top_k)
-            return documents, []
+            return documents, [], debug_info
 
         # Hybrid paths: keyword + vector (parallel)
         if strategy == "hybrid_hyde":
-            # Full pipeline: enable HyDE and multi-rewrite
             kw_hits, (vec_hits, query_vector) = await asyncio.gather(
                 self._keyword_hits(query, filters, candidate_size),
                 self._vector_hits(query, filters, candidate_size),
             )
         else:
-            # Standard hybrid: keyword + vector without HyDE
             kw_hits, (vec_hits, query_vector) = await asyncio.gather(
                 self._keyword_hits(query, filters, candidate_size),
                 self._vector_hits(query, filters, candidate_size, enable_hyde=False),
             )
 
+        if debug and debug_info is not None:
+            debug_info["keyword_top"] = self._debug_format_hits(kw_hits[:10])
+            debug_info["vector_top"] = self._debug_format_hits(vec_hits[:10])
+
         fused = self._rrf_fuse(kw_hits, vec_hits)
+
+        if debug and debug_info is not None:
+            debug_info["rrf_result"] = self._debug_format_hits(fused[:15])
+
         if not fused:
             logger.warning("RRF fusion empty, trying fallback")
             fallback = await self._fallback(query, filters, top_k)
-            return (self._post_process(query, fallback, top_k) if fallback else []), query_vector
+            results = self._post_process(query, fallback, top_k) if fallback else []
+            if debug and debug_info is not None:
+                debug_info["note"] = "RRF fusion empty, used fallback"
+            return results, query_vector, debug_info
 
         # MMR
         if settings.RAG_ENABLE_MMR and query_vector:
@@ -477,4 +495,25 @@ class HybridRetriever:
             if mmr_cands:
                 fused = self._mmr_select(mmr_cands, query_vector, top_k, max(0, min(1, settings.RAG_MMR_LAMBDA)))
 
-        return self._post_process(query, fused, top_k), query_vector
+        return self._post_process(query, fused, top_k), query_vector, debug_info
+
+    @staticmethod
+    def _debug_format_hits(hits: list[dict]) -> list[dict]:
+        """Format raw ES hits for debug display (compact, readable)."""
+        formatted = []
+        for h in hits[:15]:
+            src = h.get("_source", {}) or {}
+            formatted.append({
+                "id": h.get("_id", ""),
+                "filename": src.get("filename", "未知"),
+                "score": round(float(h.get("_score", 0)), 4),
+                "keyword_rank": h.get("keyword_rank"),
+                "vector_rank": h.get("vector_rank"),
+                "keyword_score": round(float(h.get("keyword_score", 0)), 4) if h.get("keyword_score") else None,
+                "vector_score": round(float(h.get("vector_score", 0)), 4) if h.get("vector_score") else None,
+                "rewrite_hits": h.get("_rewrite_hits", 1),
+                "has_keyword": h.get("has_keyword", False),
+                "has_vector": h.get("has_vector", False),
+                "snippet": (src.get("content", "") or "")[:200],
+            })
+        return formatted

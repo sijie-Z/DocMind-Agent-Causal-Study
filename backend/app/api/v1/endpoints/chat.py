@@ -39,12 +39,13 @@ STRICT_MODE_PROMPT = (
 
 @dataclass
 class RAGEvent:
-    type: str  # "chunk", "message", "cache_hit"
+    type: str  # "chunk", "message", "cache_hit", "debug"
     content: str = ""
     conversation_id: str = ""
     message_id: str = ""
     sources: list[dict] = field(default_factory=list)
     is_cached: bool = False
+    debug_data: dict | None = None
 
 
 def build_sources_list(context_results: list[dict]) -> list[dict]:
@@ -168,6 +169,7 @@ async def run_rag_pipeline(
     strict_mode: bool,
     privacy_mode: bool,
     event_queue: asyncio.Queue | None = None,
+    debug: bool = False,
 ) -> None:
     """
     RAG 管线核心逻辑。将事件推入 event_queue。
@@ -247,16 +249,35 @@ async def run_rag_pipeline(
     context_results: list[dict] = []
     active_doc_ids = [str(fid) for fid in file_ids if fid] if file_ids else bound_doc_ids
 
+    debug_info: dict | None = None
+
     if active_doc_ids:
-        context_results = await rag_service.search_knowledge_base(
-            user_content, search_org_id, 8, document_ids=active_doc_ids,
+        context_results, debug_info = await rag_service.search_knowledge_base(
+            user_content, search_org_id, 8, document_ids=active_doc_ids, debug=debug,
         )
         if file_ids:
             await bind_docs_to_session(session, conversation_id, active_doc_ids)
     elif not strict_mode:
-        context_results = await rag_service.search_knowledge_base(
-            user_content, search_org_id, 5,
+        context_results, debug_info = await rag_service.search_knowledge_base(
+            user_content, search_org_id, 5, debug=debug,
         )
+
+    # Emit debug event if debug mode is on
+    if debug and debug_info:
+        # Build final context preview from retrieved results
+        final_context_items = []
+        for i, item in enumerate(context_results[:5], 1):
+            final_context_items.append({
+                "rank": i,
+                "filename": item.get("filename", "未知"),
+                "score": item.get("score", 0),
+                "content": (item.get("snippet") or item.get("text", ""))[:300],
+            })
+        debug_info["final_context"] = final_context_items
+        _emit(RAGEvent(
+            type="debug", debug_data=debug_info,
+            conversation_id=conversation_id,
+        ))
 
     sources_list = build_sources_list(context_results)
     rag_service.report_grounded(bool(sources_list))
@@ -319,6 +340,24 @@ async def run_rag_pipeline(
     )
     session.add(ai_msg)
     await session.commit()
+
+    # Persist token usage to DB
+    try:
+        token_usage = rag_service.get_last_token_usage()
+        if token_usage and token_usage[0] > 0:
+            from app.api.v1.endpoints.token_usage import record_token_usage
+            model = settings.LOCAL_LLM_MODEL if settings.ENABLE_LOCAL_LLM else settings.DEEPSEEK_MODEL
+            await record_token_usage(
+                db=session,
+                user_id=user_id,
+                organization_id=organization_id,
+                model=model,
+                source='rag_chat',
+                input_tokens=token_usage[0],
+                output_tokens=token_usage[1],
+            )
+    except Exception as e:
+        logger.warning(f'Token usage recording failed (non-fatal): {e}')
 
     if not active_doc_ids and not strict_mode and query_vector is not None:
         await _semantic_cache.set(
@@ -1066,6 +1105,7 @@ async def chat_stream_endpoint(
                         strict_mode=strict_mode,
                         privacy_mode=privacy_mode,
                         event_queue=queue,
+                        debug=body.debug,
                     )
                 )
 
@@ -1075,7 +1115,12 @@ async def chat_stream_endpoint(
                         event: RAGEvent = await asyncio.wait_for(
                             queue.get(), timeout=0.1
                         )
-                        if event.type == "chunk":
+                        if event.type == "debug" and event.debug_data:
+                            yield await sse_event("debug", {
+                                "data": event.debug_data,
+                                "conversationId": event.conversation_id,
+                            })
+                        elif event.type == "chunk":
                             sse_data: dict = {
                                 "content": event.content,
                                 "conversationId": event.conversation_id,

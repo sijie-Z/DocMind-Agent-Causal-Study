@@ -1,0 +1,19 @@
+{
+  "question_id": "L2-EDGE-03",
+  "grade": "failure",
+  "category": "edge_case",
+  "question": "用 SWOT 框架分析一下。",
+  "difficulty": "medium",
+  "expected_keywords": [],
+  "actual_answer": "抱歉，我目前无法完成SWOT分析。系统在处理请求时遇到了内部错误，暂时无法获取所需的信息。请稍后再试，或联系管理员检查系统状态。",
+  "keyword_coverage": 0.0,
+  "keywords_found": [],
+  "keywords_missed": [],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 23.27833030000329,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:54:16",
+  "failure_cause": "UNKNOWN"
+}

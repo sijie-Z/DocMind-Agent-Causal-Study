@@ -5,7 +5,7 @@ import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { wsService } from '@/utils/websocket'
 import { sseService } from '@/utils/sseService'
-import type { ChatMessage, AttachedFile, KnowledgeSource } from '@/types/chat'
+import type { ChatMessage, AttachedFile, KnowledgeSource, RetrievalDebugData } from '@/types/chat'
 import type { SSEMessage } from '@/types/api'
 
 export function useChatSend(
@@ -18,7 +18,9 @@ export function useChatSend(
   isRetrieving: { value: boolean },
   sseStatus: { value: string },
   useSSE: { value: boolean },
-  useAgent: { value: boolean }
+  useAgent: { value: boolean },
+  debugEnabled?: { value: boolean },
+  debugData?: { value: RetrievalDebugData | null },
 ) {
   const message = useDedupedMessage()
   const { t } = useI18n()
@@ -89,6 +91,7 @@ export function useChatSend(
     sseService.off('tool_call')
     sseService.off('tool_result')
     sseService.off('tool_error')
+    sseService.off('debug')
 
     const onChunk = (data: SSEMessage) => {
       sseStatus.value = 'connected'
@@ -170,6 +173,12 @@ export function useChatSend(
       message.error(data.content || t('chat.sseError'))
     }
 
+    const onDebug = (data: SSEMessage) => {
+      if (debugData && debugEnabled?.value) {
+        debugData.value = (data as unknown as Record<string, unknown>).data as RetrievalDebugData
+      }
+    }
+
     sseService.on('chunk', onChunk)
     sseService.on('message', onMessage)
     sseService.on('error', onError)
@@ -177,6 +186,7 @@ export function useChatSend(
     sseService.on('tool_call', onToolCall)
     sseService.on('tool_result', onToolResult)
     sseService.on('tool_error', onToolError)
+    sseService.on('debug', onDebug)
 
     const systemPrompt = localStorage.getItem('activeSystemPrompt')
 
@@ -186,6 +196,7 @@ export function useChatSend(
         conversationId: chatStore.currentConversation?.id,
         fileIds: currentFiles.filter(f => f.status === 'done' && f.id).map(f => f.id!),
         useAgent: useAgent.value,
+        debug: debugEnabled?.value ?? false,
         payload: {
           strictMode: strictMode.value,
           privacyMode: privacyMode.value,

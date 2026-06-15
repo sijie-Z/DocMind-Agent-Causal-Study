@@ -56,7 +56,7 @@ async def search_knowledge_base(
 ) -> str:
     from app.dependencies import get_rag_pipeline
     pipeline = get_rag_pipeline()
-    results = await pipeline.search_knowledge_base(
+    results, _ = await pipeline.search_knowledge_base(
         query=query,
         organization_id=organization_id,
         top_k=min(top_k, 20),

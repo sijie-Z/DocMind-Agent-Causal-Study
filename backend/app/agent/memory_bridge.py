@@ -81,6 +81,16 @@ class AgentMemoryBridge:
         Returns a formatted string like:
             "## 相关记忆\n1. 上次分析财报时发现毛利率下降...\n2. 用户偏好详细的中文回答..."
         """
+        lf = None
+        span = None
+        try:
+            from app.agent.observability import get_langfuse
+            lf_obj = get_langfuse()
+            if lf_obj:
+                span = lf_obj.span(name="memory:recall", input={"query": query, "top_k": top_k})
+        except Exception:
+            pass
+
         await self.ensure_loaded()
         await self.ensure_embedding()
 
@@ -92,9 +102,13 @@ class AgentMemoryBridge:
                 AGENT_MEMORY_RECALLS.labels(result="miss").inc()
         except Exception as e:
             logger.warning(f"Memory recall failed: {e}")
+            if span:
+                span.end(output=f"error: {e}", level="ERROR")
             return ""
 
         if not memories:
+            if span:
+                span.end(output="no_memories")
             return ""
 
         parts = ["## 相关记忆"]
@@ -102,7 +116,10 @@ class AgentMemoryBridge:
             content = mem.get("content", mem.get("lesson", ""))
             if content:
                 parts.append(f"{i}. {content}")
-        return "\n".join(parts)
+        result = "\n".join(parts)
+        if span:
+            span.end(output=f"recalled {len(memories)} memories")
+        return result
 
     # ── Working memory (Phase 2: Execution) ──
 

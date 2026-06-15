@@ -95,6 +95,7 @@ class ChatStreamRequest(BaseModel):
     fileIds: list[str] | None = Field(None, description="关联文件 ID 列表")
     payload: dict | None = Field(None, description="额外参数（strict/privacy/sse/stream 等布尔开关）")
     useAgent: bool = Field(False, description="使用 PER Agent 模式（替代默认 RAG 管线）")
+    debug: bool = Field(False, description="启用检索调试模式（返回中间检索结果）")
 
 
 class FeedbackRequest(BaseModel):

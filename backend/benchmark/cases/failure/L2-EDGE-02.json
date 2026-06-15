@@ -1,0 +1,19 @@
+{
+  "question_id": "L2-EDGE-02",
+  "grade": "failure",
+  "category": "edge_case",
+  "question": "今天天气怎么样？",
+  "difficulty": "easy",
+  "expected_keywords": [],
+  "actual_answer": "抱歉，我搜索了“2026年6月13日 天气”，但结果只显示了日历、年历和一般年度的信息，没有找到当天的具体天气预报。天气信息通常需要更专门的天气服务才能获取，建议您换个渠道查询。",
+  "keyword_coverage": 0.0,
+  "keywords_found": [],
+  "keywords_missed": [],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 16.742475399994873,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:53:53",
+  "failure_cause": "UNKNOWN"
+}

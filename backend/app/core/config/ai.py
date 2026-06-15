@@ -81,3 +81,8 @@ class AISettings(BaseSettings):
 
     # Privacy & security
     ENABLE_PII_MASKING: bool = True
+
+    # Observability — Langfuse
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"

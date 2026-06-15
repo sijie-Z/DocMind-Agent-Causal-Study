@@ -31,14 +31,20 @@ class RagServiceFacade:
         top_k: int = 5,
         document_ids: list[str] | None = None,
         search_mode: str | None = None,
-    ) -> list[dict[str, Any]]:
-        return await self._pipeline.search_knowledge_base(query, organization_id, top_k, document_ids)
+        debug: bool = False,
+    ) -> tuple[list[dict[str, Any]], dict | None]:
+        return await self._pipeline.search_knowledge_base(
+            query, organization_id, top_k, document_ids, debug=debug,
+        )
 
     def report_grounded(self, has_sources: bool) -> None:
         self._pipeline.report_grounded(has_sources)
 
     def report_tokens(self, input_tokens: int, output_tokens: int) -> None:
         self._pipeline.report_tokens(input_tokens, output_tokens)
+
+    def get_last_token_usage(self) -> tuple[int, int] | None:
+        return self._pipeline.get_last_token_usage()
 
     def get_metrics(self, window_seconds: int = 0) -> dict[str, Any]:
         return self._pipeline.get_metrics(window_seconds)

@@ -1,0 +1,32 @@
+{
+  "question_id": "L1-FRAME-02",
+  "grade": "partial",
+  "category": "framework",
+  "question": "找一份公司财报，用杜邦分析法拆解 ROE 变化的驱动因素。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "ROE",
+    "杜邦",
+    "净利率",
+    "资产周转率",
+    "权益乘数"
+  ],
+  "actual_answer": "抱歉，我目前无法找到符合条件的上市公司财报数据，因此无法进行杜邦分析来拆解 ROE 变化。请检查查询条件（如公司名称、年份）是否准确，或者提供更具体的信息，我将再次尝试为您查找。",
+  "keyword_coverage": 0.4,
+  "keywords_found": [
+    "ROE",
+    "杜邦"
+  ],
+  "keywords_missed": [
+    "净利率",
+    "资产周转率",
+    "权益乘数"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 33.32202320000215,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:46:45",
+  "failure_cause": ""
+}

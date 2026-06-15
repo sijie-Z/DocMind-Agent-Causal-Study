@@ -1,0 +1,32 @@
+{
+  "question_id": "L1-CROSS-05",
+  "grade": "partial",
+  "category": "cross_doc",
+  "question": "搜索近三年的市场分析报告，提取每一年对某个行业的核心判断，对比三年间的观点变化。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "趋势",
+    "变化",
+    "行业",
+    "分析",
+    "预测"
+  ],
+  "actual_answer": "您好，我无法完成您的请求。不论是知识库还是网络搜索，都没有找到近三年的市场分析报告、行业趋势或核心判断的相关信息。可能是搜索关键词不够具体，或者这类报告目前不在我的知识范围内。建议您尝试提供更明确的行业名称或报告标题，方便我重新查找。",
+  "keyword_coverage": 0.6,
+  "keywords_found": [
+    "趋势",
+    "行业",
+    "分析"
+  ],
+  "keywords_missed": [
+    "变化",
+    "预测"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 28.45031589998689,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:45:40",
+  "failure_cause": ""
+}

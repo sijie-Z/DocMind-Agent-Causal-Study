@@ -123,6 +123,9 @@
                     <n-tag v-if="item.category" size="small" round type="warning" :bordered="false">
                       {{ getCategoryLabel(item.category) }}
                     </n-tag>
+                    <n-tag v-if="item.version" size="small" round type="default" :bordered="false">
+                      v{{ item.version }}
+                    </n-tag>
                   </div>
                   <h3 class="font-semibold text-gray-900 dark:text-white text-lg mb-2">{{ item.name }}</h3>
                   <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">{{ item.content }}</p>
@@ -154,8 +157,14 @@
     </div>
 
     <!-- 编辑抽屉 -->
-    <n-drawer v-model:show="showDrawer" :width="520" placement="right">
+    <n-drawer v-model:show="showDrawer" :width="620" placement="right">
       <n-drawer-content :title="editingId ? '编辑模板' : '新建模板'" closable>
+        <template #header-extra>
+          <n-button v-if="editingId" size="tiny" quaternary @click="openVersionHistory(editingId)">
+            <template #icon><n-icon><TimeOutline /></n-icon></template>
+            版本历史
+          </n-button>
+        </template>
         <n-form :model="formModel" ref="formRef" :rules="rules" label-placement="top">
           <n-form-item label="模板名称" path="name">
             <n-input v-model:value="formModel.name" placeholder="给模板起个名字" maxlength="50" show-count />
@@ -177,6 +186,9 @@
               show-count
             />
           </n-form-item>
+          <n-form-item label="变更说明" path="change_note" v-if="editingId">
+            <n-input v-model:value="formModel.change_note" placeholder="简要说明本次变更内容（选填）" maxlength="200" show-count />
+          </n-form-item>
           <n-form-item label="描述" path="description">
             <n-input v-model:value="formModel.description" placeholder="可选：描述这个模板的用途" maxlength="200" show-count />
           </n-form-item>
@@ -191,6 +203,50 @@
         </template>
       </n-drawer-content>
     </n-drawer>
+
+    <!-- Version History Drawer -->
+    <n-drawer v-model:show="showVersionDrawer" :width="520" placement="right">
+      <n-drawer-content title="版本历史" closable>
+        <n-spin :show="versionsLoading">
+          <div v-if="versions.length === 0 && !versionsLoading" class="py-10">
+            <n-empty description="暂无版本历史" />
+          </div>
+          <div v-else class="space-y-3">
+            <div
+              v-for="ver in versions"
+              :key="ver.id"
+              class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+              :class="{ 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600': ver.version === currentVersion }"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <n-tag :type="ver.version === currentVersion ? 'success' : 'default'" size="small" round>
+                    v{{ ver.version }}
+                  </n-tag>
+                  <span v-if="ver.version === currentVersion" class="text-xs text-green-500">当前版本</span>
+                </div>
+                <div class="flex gap-1">
+                  <n-button
+                    v-if="ver.version !== currentVersion"
+                    size="tiny"
+                    type="primary"
+                    ghost
+                    @click="restoreVersion(ver)"
+                  >
+                    回滚到此版本
+                  </n-button>
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 mb-1">{{ formatDate(ver.created_at) }}</p>
+              <p v-if="ver.change_note" class="text-sm text-gray-700 dark:text-gray-300 italic">
+                「{{ ver.change_note }}」
+              </p>
+              <p class="text-xs text-gray-400 mt-1 line-clamp-2">{{ ver.content }}</p>
+            </div>
+          </div>
+        </n-spin>
+      </n-drawer-content>
+    </n-drawer>
   </div>
 </template>
 
@@ -200,8 +256,8 @@ import { useRouter } from 'vue-router'
 import { useDialog } from 'naive-ui'
 import { useDedupedMessage } from '@/utils/message'
 import { useI18n } from 'vue-i18n'
-import { AddOutline, TrashOutline, CreateOutline, CopyOutline, SparklesOutline, SearchOutline, DocumentTextOutline, PlayOutline } from '@vicons/ionicons5'
-import { getPrompts, createPrompt, updatePrompt, deletePrompt, seedDefaultPrompts, type PromptTemplate } from '@/api/prompt'
+import { AddOutline, TrashOutline, CreateOutline, CopyOutline, SparklesOutline, SearchOutline, DocumentTextOutline, PlayOutline, TimeOutline } from '@vicons/ionicons5'
+import { getPrompts, createPrompt, updatePrompt, deletePrompt, seedDefaultPrompts, getPromptVersions, restorePromptVersion, type PromptTemplate, type PromptTemplateVersion } from '@/api/prompt'
 
 const router = useRouter()
 const message = useDedupedMessage()
@@ -219,17 +275,24 @@ const editingId = ref<number | null>(null)
 const activeCategory = ref<string | null>(null)
 const searchQuery = ref('')
 
+// Version history state
+const showVersionDrawer = ref(false)
+const versionsLoading = ref(false)
+const versions = ref<PromptTemplateVersion[]>([])
+const currentVersion = ref(1)
+
 const formModel = ref({
   name: '',
   content: '',
   description: '',
   category: 'general',
-  is_active: true
+  is_active: true,
+  change_note: '',
 })
 
 const rules = {
   name: { required: true, message: '请输入模板名称', trigger: 'blur' },
-  content: { required: true, message: '请输入提示词内容', trigger: 'blur' }
+  content: { required: true, message: '请输入提示词内容', trigger: 'blur' },
 }
 
 const categories = computed(() => [
@@ -238,7 +301,7 @@ const categories = computed(() => [
   { label: 'RAG', value: 'rag' },
   { label: '翻译', value: 'translate' },
   { label: '摘要', value: 'summary' },
-  { label: '代码', value: 'code' }
+  { label: '代码', value: 'code' },
 ])
 
 const categoryTabs = computed(() => {
@@ -248,7 +311,7 @@ const categoryTabs = computed(() => {
     { label: 'RAG', value: 'rag', count: prompts.value.filter(p => p.category === 'rag').length },
     { label: '翻译', value: 'translate', count: prompts.value.filter(p => p.category === 'translate').length },
     { label: '摘要', value: 'summary', count: prompts.value.filter(p => p.category === 'summary').length },
-    { label: '代码', value: 'code', count: prompts.value.filter(p => p.category === 'code').length }
+    { label: '代码', value: 'code', count: prompts.value.filter(p => p.category === 'code').length },
   ]
   return base.filter(c => c.value === null || c.count > 0 || activeCategory.value === c.value)
 })
@@ -272,6 +335,12 @@ const getCategoryLabel = (category: string) => {
   return map[category] || category
 }
 
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 const loadPrompts = async () => {
   loading.value = true
   try {
@@ -289,18 +358,19 @@ const loadPrompts = async () => {
 
 const handleAdd = () => {
   editingId.value = null
-  formModel.value = { name: '', content: '', description: '', category: 'general', is_active: true }
+  formModel.value = { name: '', content: '', description: '', category: 'general', is_active: true, change_note: '' }
   showDrawer.value = true
 }
 
 const handleEdit = (item: PromptTemplate) => {
   editingId.value = item.id
-  formModel.value = { name: item.name, content: item.content, description: item.description || '', category: item.category, is_active: item.is_active }
+  formModel.value = { name: item.name, content: item.content, description: item.description || '', category: item.category, is_active: item.is_active, change_note: '' }
+  currentVersion.value = item.version || 1
   showDrawer.value = true
 }
 
 const handleCopy = (item: PromptTemplate) => {
-  formModel.value = { name: item.name + ' (副本)', content: item.content, description: item.description || '', category: item.category, is_active: true }
+  formModel.value = { name: item.name + ' (副本)', content: item.content, description: item.description || '', category: item.category, is_active: true, change_note: '' }
   editingId.value = null
   showDrawer.value = true
 }
@@ -314,10 +384,12 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     if (editingId.value) {
-      await updatePrompt(editingId.value, formModel.value)
+      const payload: Record<string, unknown> = { ...formModel.value }
+      await updatePrompt(editingId.value, payload)
       message.success('更新成功')
     } else {
-      await createPrompt(formModel.value)
+      const { change_note, ...createData } = formModel.value
+      await createPrompt(createData)
       message.success('创建成功')
     }
     showDrawer.value = false
@@ -329,6 +401,42 @@ const handleSubmit = async () => {
   } finally {
     submitting.value = false
   }
+}
+
+// Version history
+const openVersionHistory = async (promptId: number) => {
+  versionsLoading.value = true
+  showVersionDrawer.value = true
+  try {
+    const res = await getPromptVersions(promptId)
+    versions.value = res.data || []
+    // Refresh current version from prompts list
+    const current = prompts.value.find(p => p.id === promptId)
+    if (current) currentVersion.value = current.version || 1
+  } catch {
+    message.error('加载版本历史失败')
+  } finally {
+    versionsLoading.value = false
+  }
+}
+
+const restoreVersion = async (ver: PromptTemplateVersion) => {
+  dialog.warning({
+    title: '确认回滚',
+    content: `确定要将模板回滚到 v${ver.version} 吗？当前内容将被保存为一个新版本。`,
+    positiveText: '确认回滚',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await restorePromptVersion(ver.prompt_id, ver.version)
+        message.success(`已回滚到 v${ver.version}`)
+        showVersionDrawer.value = false
+        loadPrompts()
+      } catch {
+        message.error('回滚失败')
+      }
+    },
+  })
 }
 
 const handleDelete = (id: number) => {
@@ -345,7 +453,7 @@ const handleDelete = (id: number) => {
       } catch (error) {
         message.error(t('prompts.toast.deleteFailed'))
       }
-    }
+    },
   })
 }
 

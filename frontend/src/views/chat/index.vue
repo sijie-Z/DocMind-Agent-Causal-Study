@@ -47,10 +47,12 @@
         :title="chatStore.currentConversation?.title"
         :hasConversation="!!currentConversationId"
         :isBoundMode="isBoundMode"
+        :debugEnabled="debugEnabled"
         @toggleSidebar="toggleSidebar"
         @clearChat="clearChat"
         @unbind="handleUnbind"
         @exportChat="handleExportChat"
+        @toggleDebug="toggleDebug"
       />
 
       <!-- Mobile back-to-conversations button -->
@@ -77,6 +79,13 @@
         @feedback="handleFeedback"
         @copy="copyText"
         @regenerate="handleRegenerate"
+      />
+
+      <!-- Retrieval Debug Panel -->
+      <DebugPanel
+        v-if="debugData"
+        :debug-data="debugData"
+        @close="debugData = null"
       />
 
       <!-- Error recovery banner for message loading -->
@@ -136,7 +145,7 @@ import type { Conversation } from '@/api/conversation'
 import type { ChatMessage } from '@/types/chat'
 import { getToken } from '@/utils/auth'
 
-import { ChatSidebar, ChatMessages, ChatInput, ChatHeader, DocumentPreviewModal } from './components'
+import { ChatSidebar, ChatMessages, ChatInput, ChatHeader, DocumentPreviewModal, DebugPanel } from './components'
 import { useChatAttachments, useChatMessages, useChatSessions, useChatConnection, useChatSend } from './composables'
 
 const message = useDedupedMessage()
@@ -173,13 +182,20 @@ const {
 } = useChatConnection(messages, baseScrollToBottom, fetchConversations)
 
 const useAgent = ref(false)
+const debugEnabled = ref(false)
+const debugData = ref<import('@/types/chat').RetrievalDebugData | null>(null)
+
+const toggleDebug = () => {
+  debugEnabled.value = !debugEnabled.value
+  if (!debugEnabled.value) debugData.value = null
+}
 
 const {
   inputMessage, strictMode, privacyMode, handleSend: baseHandleSend, regenerateMessage
 } = useChatSend(
   messages, attachedFiles, attachedFileIds,
   baseScrollToBottom, fetchConversations,
-  isLoading, isRetrieving, sseStatus, useSSE, useAgent
+  isLoading, isRetrieving, sseStatus, useSSE, useAgent, debugEnabled, debugData,
 )
 
 const handleScroll = baseHandleScroll

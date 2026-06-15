@@ -1,0 +1,30 @@
+{
+  "question_id": "L1-WEB-01",
+  "grade": "partial",
+  "category": "web_search",
+  "question": "搜索最新的 AI 行业融资新闻，列出最近一个月获得融资的 AI 公司及其金额。",
+  "difficulty": "medium",
+  "expected_keywords": [
+    "融资",
+    "AI",
+    "金额",
+    "公司"
+  ],
+  "actual_answer": "抱歉，我目前无法检索到最近一个月（2026年5月13日至2026年6月13日）AI行业的融资新闻。搜索结果没有返回相关信息，可能是由于数据源限制或该时段内暂无公开报道的融资事件。建议您稍后重试，或尝试使用其他关键词进行搜索。如有其他问题，请随时提出。",
+  "keyword_coverage": 0.5,
+  "keywords_found": [
+    "融资",
+    "AI"
+  ],
+  "keywords_missed": [
+    "金额",
+    "公司"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 23.278071799999452,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:49:57",
+  "failure_cause": ""
+}

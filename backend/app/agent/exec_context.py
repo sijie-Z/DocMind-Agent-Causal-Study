@@ -1,0 +1,271 @@
+"""ExecutionContext — per-request state that flows through the PER pipeline.
+
+Created at the start of each Agent request, destroyed when the request ends.
+All phases (Planner, Executor, Reflector) write into it; nothing persists.
+
+This is NOT Conversation Memory.  Conversation memory crosses sessions.
+ExecutionContext lives and dies with a single user query.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+from dataclasses import dataclass, field, asdict
+from datetime import datetime
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class StepRecord:
+    """Record of a single plan step execution attempt."""
+    step_id: str
+    description: str
+    tool_used: str | None
+    status: str                      # pending / running / completed / failed / skipped
+    result_summary: str | None = None
+    error: str | None = None
+    duration_ms: float = 0.0
+    tokens_used: int = 0
+
+    @property
+    def is_success(self) -> bool:
+        return self.status == "completed"
+
+
+@dataclass
+class Finding:
+    """A piece of information discovered during execution."""
+    source_step: str
+    content: str
+    source_tool: str | None = None
+    confidence: str = "medium"       # high / medium / low
+
+
+@dataclass
+class Decision:
+    """A key decision made during any phase."""
+    phase: str                       # plan / execute / reflect
+    action: str                      # choose_tool / retry_step / skip_step / skill_match / finalize
+    reasoning: str
+    triggered_by: str | None = None
+
+
+@dataclass
+class ExecutionContext:
+    """Single-request execution state.  Created per query, destroyed after response."""
+
+    task_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    query: str = ""
+
+    # ── Planning ──
+    goal: str = ""
+    plan_summary: str = ""
+
+    # ── Execution — step tracking ──
+    current_step_id: str | None = None
+    completed_steps: list[StepRecord] = field(default_factory=list)
+
+    # ── Findings & decisions ──
+    findings: list[Finding] = field(default_factory=list)
+    failures: list[str] = field(default_factory=list)
+    decisions: list[Decision] = field(default_factory=list)
+
+    # ── Intermediate artifacts (avoid temp vars scattered through code) ──
+    artifacts: dict[str, Any] = field(default_factory=dict)
+
+    # ── Progress ──
+    progress: float = 0.0
+    total_tokens: int = 0
+    start_time: float = field(default_factory=lambda: datetime.now().timestamp())
+    duration_ms: float = 0.0
+
+    # ── Convenience methods ──
+
+    def add_finding(
+        self,
+        step_id: str,
+        content: str,
+        tool: str | None = None,
+        confidence: str = "medium",
+    ) -> None:
+        self.findings.append(Finding(
+            source_step=step_id,
+            content=content[:500],
+            source_tool=tool,
+            confidence=confidence,
+        ))
+
+    def record_decision(self, phase: str, action: str, reasoning: str) -> None:
+        self.decisions.append(Decision(
+            phase=phase, action=action, reasoning=reasoning,
+        ))
+
+    def complete_step(
+        self,
+        step_id: str,
+        description: str,
+        tool: str | None,
+        status: str,
+        result: str | None = None,
+        error: str | None = None,
+        duration: float = 0.0,
+        tokens: int = 0,
+    ) -> None:
+        record = StepRecord(
+            step_id=step_id,
+            description=description,
+            tool_used=tool,
+            status=status,
+            result_summary=(result or "")[:300],
+            error=error,
+            duration_ms=duration,
+            tokens_used=tokens,
+        )
+        self.completed_steps.append(record)
+        if status == "failed":
+            self.failures.append(f"[{step_id}] {(error or '')[:200]}")
+
+    def mark_done(self) -> None:
+        self.duration_ms = (datetime.now().timestamp() - self.start_time) * 1000
+        self.progress = 1.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Full serialisation — preserves ALL data for replay."""
+        return {
+            "task_id": self.task_id,
+            "query": self.query,
+            "goal": self.goal,
+            "plan_summary": self.plan_summary,
+            "steps_completed": len(self.completed_steps),
+            "steps": [
+                {
+                    "step_id": s.step_id,
+                    "description": s.description,
+                    "tool_used": s.tool_used,
+                    "status": s.status,
+                    "result_summary": s.result_summary,
+                    "error": s.error,
+                    "duration_ms": round(s.duration_ms, 1),
+                    "tokens_used": s.tokens_used,
+                }
+                for s in self.completed_steps
+            ],
+            "findings": [
+                {"source_step": f.source_step, "content": f.content[:300],
+                 "source_tool": f.source_tool, "confidence": f.confidence}
+                for f in self.findings
+            ],
+            "decisions": [
+                {"phase": d.phase, "action": d.action,
+                 "reasoning": d.reasoning[:200], "triggered_by": d.triggered_by}
+                for d in self.decisions
+            ],
+            "failures": self.failures[:10],
+            "duration_ms": round(self.duration_ms, 1),
+            "total_tokens": self.total_tokens,
+            "progress": self.progress,
+            "start_time": self.start_time,
+        }
+
+    def to_summary_dict(self) -> dict[str, Any]:
+        """Lightweight summary for logging / observability."""
+        return {
+            "task_id": self.task_id,
+            "query": self.query[:100],
+            "goal": self.goal[:100] if self.goal else "",
+            "steps_completed": len(self.completed_steps),
+            "findings": len(self.findings),
+            "failures": len(self.failures),
+            "decisions": len(self.decisions),
+            "duration_ms": self.duration_ms,
+            "total_tokens": self.total_tokens,
+            "artifacts_keys": list(self.artifacts.keys()),
+        }
+
+    # ── Persistence for Replay ──
+
+    async def save(self, ttl: int = 86400 * 7) -> bool:
+        """Persist full execution context for replay.
+
+        Saves to Redis first; falls back to local JSON file.
+
+        Args:
+            ttl: Time-to-live in seconds (default 7 days).
+
+        Returns:
+            True if saved successfully (either backend).
+        """
+        data = self.to_dict()
+        # Try Redis
+        try:
+            from app.core.redis import redis_client
+            if redis_client:
+                key = f"agent:replay:{self.task_id}"
+                await redis_client.setex(key, ttl, json.dumps(data, ensure_ascii=False))
+                logger.debug("ExecutionContext saved to Redis: %s", self.task_id)
+                return True
+        except Exception as e:
+            logger.debug("Failed to save ExecutionContext to Redis: %s", e)
+
+        # Fallback: local file
+        try:
+            from pathlib import Path
+            p = Path("benchmark/replay") / f"{self.task_id}.json"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.info("ExecutionContext saved locally: %s", p)
+            return True
+        except Exception as e:
+            logger.debug("Failed to save ExecutionContext locally: %s", e)
+        return False
+
+    @classmethod
+    async def load(cls, task_id: str) -> dict[str, Any] | None:
+        """Load a saved execution context for replay.
+
+        Returns:
+            The full context dict, or None if not found.
+        """
+        try:
+            from app.core.redis import redis_client
+            if redis_client:
+                raw = await redis_client.get(f"agent:replay:{task_id}")
+                if raw:
+                    return json.loads(raw)
+        except Exception as e:
+            logger.debug("Failed to load ExecutionContext from Redis: %s", e)
+        return None
+
+    @classmethod
+    async def load_local(cls, path: str) -> dict[str, Any] | None:
+        """Load a saved execution context from a local JSON file."""
+        try:
+            from pathlib import Path
+            p = Path(path)
+            if p.exists():
+                return json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.debug("Failed to load ExecutionContext from %s: %s", path, e)
+        return None
+
+    async def save_local(self, path: str | None = None) -> str:
+        """Save execution context to a local JSON file for benchmark analysis.
+
+        Args:
+            path: Optional file path. Default: benchmark/replay/{task_id}.json
+
+        Returns:
+            The file path saved to.
+        """
+        from pathlib import Path
+        if path is None:
+            path = f"benchmark/replay/{self.task_id}.json"
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(self.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info("ExecutionContext saved locally: %s", p)
+        return str(p)

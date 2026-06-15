@@ -1,0 +1,276 @@
+{
+  "timestamp": "2026-06-15T16:48:24.843190",
+  "total_scenarios": 10,
+  "passed": 0,
+  "failed": 10,
+  "overall_success_rate": 0.0,
+  "avg_duration_ms": 2276.9,
+  "total_steps_planned": 15,
+  "total_steps_completed": 0,
+  "by_category": {
+    "analysis": {
+      "total": 3,
+      "passed": 0,
+      "failed": 3,
+      "success_rate": 0.0,
+      "avg_duration_ms": 2529.4
+    },
+    "feishu": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "success_rate": 0.0,
+      "avg_duration_ms": 1520.4
+    },
+    "general": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "success_rate": 0.0,
+      "avg_duration_ms": 1521.3
+    },
+    "mixed": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "success_rate": 0.0,
+      "avg_duration_ms": 2282.0
+    },
+    "search": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "success_rate": 0.0,
+      "avg_duration_ms": 3027.2
+    }
+  },
+  "tool_metrics": {
+    "?": {
+      "total_calls": 1,
+      "failed_calls": 1,
+      "success_rate": 0.0,
+      "top_errors": {
+        "no_tool": 1
+      }
+    },
+    "cross_document_analysis": {
+      "total_calls": 1,
+      "failed_calls": 1,
+      "success_rate": 0.0,
+      "top_errors": {
+        "not_found": 1
+      }
+    },
+    "extract_insights": {
+      "total_calls": 2,
+      "failed_calls": 2,
+      "success_rate": 0.0,
+      "top_errors": {
+        "not_found": 2
+      }
+    },
+    "feishu_bitable_query": {
+      "total_calls": 4,
+      "failed_calls": 4,
+      "success_rate": 0.0,
+      "top_errors": {
+        "not_found": 4
+      }
+    },
+    "generate_report": {
+      "total_calls": 1,
+      "failed_calls": 1,
+      "success_rate": 0.0,
+      "top_errors": {
+        "not_found": 1
+      }
+    },
+    "search_knowledge_base": {
+      "total_calls": 4,
+      "failed_calls": 4,
+      "success_rate": 0.0,
+      "top_errors": {
+        "not_found": 4
+      }
+    },
+    "summarize_document": {
+      "total_calls": 1,
+      "failed_calls": 1,
+      "success_rate": 0.0,
+      "top_errors": {
+        "not_found": 1
+      }
+    },
+    "vector_search": {
+      "total_calls": 1,
+      "failed_calls": 1,
+      "success_rate": 0.0,
+      "top_errors": {
+        "not_found": 1
+      }
+    }
+  },
+  "semantic_effectiveness": {
+    "retried_steps": 0,
+    "retry_success": 0,
+    "retry_success_rate": 0.0,
+    "fallback_attempts": 0,
+    "fallback_success": 0,
+    "fallback_success_rate": 0.0,
+    "fallback_by_tool": {},
+    "parallel_groups_total": 0
+  },
+  "planner_accuracy": {
+    "total_steps": 15,
+    "planner_hints_given": 14,
+    "hint_matched": 14,
+    "hint_mismatched": 0,
+    "hint_accuracy": 1.0,
+    "steps_without_hint": 1
+  },
+  "scenarios": [
+    {
+      "scenario": "feishu_query_basic",
+      "category": "feishu",
+      "passed": false,
+      "trace_id": "c5e51bd9f35c",
+      "steps": "0/1",
+      "duration_ms": 1522.9,
+      "tools_used": [
+        "feishu_bitable_query"
+      ],
+      "failures": [
+        "1 step(s) failed"
+      ]
+    },
+    {
+      "scenario": "feishu_query_filtered",
+      "category": "feishu",
+      "passed": false,
+      "trace_id": "b70c96338436",
+      "steps": "0/1",
+      "duration_ms": 1517.9,
+      "tools_used": [
+        "feishu_bitable_query"
+      ],
+      "failures": [
+        "1 step(s) failed"
+      ]
+    },
+    {
+      "scenario": "kb_search_simple",
+      "category": "search",
+      "passed": false,
+      "trace_id": "2340fcb8ef82",
+      "steps": "0/2",
+      "duration_ms": 3040.4,
+      "tools_used": [
+        "extract_insights",
+        "search_knowledge_base"
+      ],
+      "failures": [
+        "2 step(s) failed"
+      ]
+    },
+    {
+      "scenario": "kb_vector_search",
+      "category": "search",
+      "passed": false,
+      "trace_id": "510c22126145",
+      "steps": "0/2",
+      "duration_ms": 3014.1,
+      "tools_used": [
+        "search_knowledge_base",
+        "vector_search"
+      ],
+      "failures": [
+        "2 step(s) failed"
+      ]
+    },
+    {
+      "scenario": "doc_summarize",
+      "category": "analysis",
+      "passed": false,
+      "trace_id": "53ccecb42626",
+      "steps": "0/1",
+      "duration_ms": 1522.8,
+      "tools_used": [
+        "summarize_document"
+      ],
+      "failures": [
+        "1 step(s) failed"
+      ]
+    },
+    {
+      "scenario": "doc_compare",
+      "category": "analysis",
+      "passed": false,
+      "trace_id": "6de4b4dc6b29",
+      "steps": "0/1",
+      "duration_ms": 1512.8,
+      "tools_used": [
+        "cross_document_analysis"
+      ],
+      "failures": [
+        "Too few steps: 1 < min 2"
+      ]
+    },
+    {
+      "scenario": "feishu_then_kb",
+      "category": "mixed",
+      "passed": false,
+      "trace_id": "67410a8cf32c",
+      "steps": "0/2",
+      "duration_ms": 3041.8,
+      "tools_used": [
+        "feishu_bitable_query",
+        "search_knowledge_base"
+      ],
+      "failures": [
+        "2 step(s) failed"
+      ]
+    },
+    {
+      "scenario": "multi_query_parallel",
+      "category": "mixed",
+      "passed": false,
+      "trace_id": "5ab1b42323eb",
+      "steps": "0/1",
+      "duration_ms": 1522.1,
+      "tools_used": [
+        "feishu_bitable_query"
+      ],
+      "failures": [
+        "Too few steps: 1 < min 2"
+      ]
+    },
+    {
+      "scenario": "empty_query",
+      "category": "general",
+      "passed": false,
+      "trace_id": "0017347802bb",
+      "steps": "0/1",
+      "duration_ms": 1521.3,
+      "tools_used": [],
+      "failures": [
+        "1 step(s) failed"
+      ]
+    },
+    {
+      "scenario": "complex_analysis",
+      "category": "analysis",
+      "passed": false,
+      "trace_id": "11763e5429f6",
+      "steps": "0/3",
+      "duration_ms": 4552.6,
+      "tools_used": [
+        "extract_insights",
+        "generate_report",
+        "search_knowledge_base"
+      ],
+      "failures": [
+        "3 step(s) failed"
+      ]
+    }
+  ]
+}

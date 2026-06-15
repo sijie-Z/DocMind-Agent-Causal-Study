@@ -21,6 +21,7 @@ from openai import AsyncOpenAI
 from app.agent.config import AgentConfig
 from app.agent.context import ContextEngine
 from app.agent.events import AgentEvent
+from app.agent.exec_context import ExecutionContext
 from app.agent.executor import Executor
 from app.agent.memory_bridge import AgentMemoryBridge
 from app.agent.planner import Plan, Planner, PlanStep
@@ -205,6 +206,9 @@ class PERAgentLoop:
         """
         start_time = time.perf_counter()
 
+        # ── Execution Context (per-request state) ────────────────────────
+        ctx = ExecutionContext(query=query)
+
         # ── Phase 0: Memory recall ────────────────────────────────────────
         memory_context = ""
         if self.config.enable_memory:
@@ -235,6 +239,7 @@ class PERAgentLoop:
                 query=query,
                 history=history,
                 memory_context=memory_context,
+                ctx=ctx,
             ):
                 yield event
                 if event.type == "plan_start":
@@ -247,7 +252,7 @@ class PERAgentLoop:
                         tool_hint=event.tool_hint or None,
                     ))
                 elif event.type == "plan_complete":
-                    plan_goal = event.plan_id  # keep plan_id reference
+                    plan_goal = event.plan_id
 
             if plan_steps:
                 plan = Plan(
@@ -256,6 +261,8 @@ class PERAgentLoop:
                     reasoning=plan_reasoning,
                     steps=plan_steps,
                 )
+                ctx.goal = plan_goal
+                ctx.plan_summary = f"{len(plan_steps)} 个步骤"
         else:
             plan = Plan(
                 id=_uuid_mod.uuid4().hex[:12],
@@ -288,6 +295,7 @@ class PERAgentLoop:
                 organization_id=self.organization_id,
                 user_id=self.user_id,
                 enable_thinking=self.config.enable_thinking,
+                ctx=ctx,
             ):
                 yield event
                 if event.type == "chunk":
@@ -355,7 +363,7 @@ class PERAgentLoop:
         # ── Phase 3: Reflection ──────────────────────────────────────────
         if self.config.enable_reflection and plan.steps:
             results = self.memory.get_all_results()
-            async for event in self.reflector.reflect(plan, results):
+            async for event in self.reflector.reflect(plan, results, ctx=ctx):
                 yield event
                 # Check reflection decision
                 if event.type == "reflection" and event.reflection_result == "retry":
@@ -423,6 +431,21 @@ class PERAgentLoop:
 
         # ── Phase 4: Store + Finalize ─────────────────────────────────────
         await self.memory.record_interaction(query, final_output)
+
+        ctx.mark_done()
+        ctx.record_decision("finalize", "complete", "Agent loop finished")
+        # Persist for execution replay
+        try:
+            await ctx.save()
+        except Exception:
+            pass
+        # Yield execution context as a data event for observability
+        yield AgentEvent(
+            type="execution_context",
+            content=ctx.to_dict(),
+            plan_id=plan.id if plan else "",
+            plan_progress=1.0,
+        )
 
         elapsed = (time.perf_counter() - start_time) * 1000
         logger.info(

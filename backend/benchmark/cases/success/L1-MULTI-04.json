@@ -1,0 +1,32 @@
+{
+  "question_id": "L1-MULTI-04",
+  "grade": "success",
+  "category": "multi_step",
+  "question": "搜索一份市场报告和一份年报，用 PEST 和 SWOT 两个框架分别分析，然后综合给出投资建议。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "PEST",
+    "SWOT",
+    "分析",
+    "建议",
+    "综合"
+  ],
+  "actual_answer": "您好，我尝试搜索市场报告和年报，但知识库中没有找到相关文档，因此无法进行 PEST 和 SWOT 分析，也无法给出投资建议。建议您提供具体的公司或行业名称，或者调整关键词，我来帮您重新搜索。",
+  "keyword_coverage": 0.8,
+  "keywords_found": [
+    "PEST",
+    "SWOT",
+    "分析",
+    "建议"
+  ],
+  "keywords_missed": [
+    "综合"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 26.3017039999977,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:49:34",
+  "failure_cause": ""
+}

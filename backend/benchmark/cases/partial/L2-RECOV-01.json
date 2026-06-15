@@ -1,0 +1,26 @@
+{
+  "question_id": "L2-RECOV-01",
+  "grade": "partial",
+  "category": "tool_recovery",
+  "question": "搜索一个完全不存在的文档 ID fake_404_doc，看看有什么结果。",
+  "difficulty": "easy",
+  "expected_keywords": [
+    "不存在",
+    "未找到"
+  ],
+  "actual_answer": "您查询的文档（ID: fake_404_doc）在系统中未找到，可能是文档ID有误或该文档已被删除。请检查文档编号是否正确。",
+  "keyword_coverage": 0.5,
+  "keywords_found": [
+    "未找到"
+  ],
+  "keywords_missed": [
+    "不存在"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 14.522974199993769,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:46:02",
+  "failure_cause": ""
+}

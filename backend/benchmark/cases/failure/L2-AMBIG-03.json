@@ -1,0 +1,19 @@
+{
+  "question_id": "L2-AMBIG-03",
+  "grade": "failure",
+  "category": "ambiguity",
+  "question": "这几个方案哪个好？",
+  "difficulty": "hard",
+  "expected_keywords": [],
+  "actual_answer": "抱歉，我目前的知识库中没有找到与这几个方案相关的信息。能否请您具体说明一下是哪几个方案？这样我可以更准确地为您分析和比较。",
+  "keyword_coverage": 0.0,
+  "keywords_found": [],
+  "keywords_missed": [],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 32.37349310000718,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:53:21",
+  "failure_cause": "UNKNOWN"
+}

@@ -19,11 +19,9 @@ export interface AttachedFile {
   errorMsg?: string
   _originalFile?: File
   _errorExpanded?: boolean
-  // 进度信息
-  progress?: number // 0-100
-  statusDetail?: string // 详细状态文本
-  // 即时解析内容（不走完整RAG链路）
-  parsedContent?: string // 文件解析后的纯文本，直接作为上下文
+  progress?: number
+  statusDetail?: string
+  parsedContent?: string
 }
 
 export interface Conversation {
@@ -49,4 +47,43 @@ export interface KnowledgeSource {
   hasVector?: boolean
   rewriteHits?: number
   freshFactor?: number
+}
+
+export interface RetrievalDebugData {
+  strategy?: string
+  query?: string
+  cache_hit?: boolean
+  cache_type?: string
+  keyword_top?: DebugHit[]
+  vector_top?: DebugHit[]
+  rrf_result?: DebugHit[]
+  rerank_result?: DebugHit[]
+  rerank_reorder?: { id: string; filename: string }[]
+  total_results?: number
+  elapsed_ms?: number
+  note?: string
+  stages?: Record<string, RetrievalDebugData>
+  /** The actual context content sent to the LLM */
+  final_context?: FinalContextItem[]
+}
+
+export interface FinalContextItem {
+  rank: number
+  filename: string
+  score: number
+  content: string
+}
+
+export interface DebugHit {
+  id: string
+  filename: string
+  score: number
+  keyword_rank?: number | null
+  vector_rank?: number | null
+  keyword_score?: number | null
+  vector_score?: number | null
+  rewrite_hits?: number
+  has_keyword?: boolean
+  has_vector?: boolean
+  snippet?: string
 }

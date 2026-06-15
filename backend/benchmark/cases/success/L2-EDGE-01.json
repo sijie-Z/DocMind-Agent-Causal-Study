@@ -1,0 +1,25 @@
+{
+  "question_id": "L2-EDGE-01",
+  "grade": "success",
+  "category": "edge_case",
+  "question": "知识库里有什么？",
+  "difficulty": "easy",
+  "expected_keywords": [
+    "文档",
+    "知识库"
+  ],
+  "actual_answer": "抱歉，我目前无法列出知识库中的文档，因为系统内部遇到了一个配置错误。这个问题与数据库模型的关联设置有关，需要技术人员检查并修复后才能正常使用。请稍后再试，或联系管理员处理。",
+  "keyword_coverage": 1.0,
+  "keywords_found": [
+    "文档",
+    "知识库"
+  ],
+  "keywords_missed": [],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 14.53428220000933,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:53:36",
+  "failure_cause": ""
+}

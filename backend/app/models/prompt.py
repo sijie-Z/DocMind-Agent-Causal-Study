@@ -21,6 +21,7 @@ class PromptTemplate(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否激活")
     is_system: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否为系统内置")
     category: Mapped[str] = mapped_column(String(50), default="general", comment="分类")
+    version: Mapped[int] = mapped_column(Integer, default=1, comment="当前版本号")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now(), comment="更新时间")
     creator_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), comment="创建者ID")

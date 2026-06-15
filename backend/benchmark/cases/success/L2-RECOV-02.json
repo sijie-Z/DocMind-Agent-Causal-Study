@@ -1,0 +1,27 @@
+{
+  "question_id": "L2-RECOV-02",
+  "grade": "success",
+  "category": "tool_recovery",
+  "question": "依次搜索公司A年报、公司B年报、公司A最新公告，然后对比A和B的营收规模，再结合公告分析A的最新动向。",
+  "difficulty": "medium",
+  "expected_keywords": [
+    "营收",
+    "对比",
+    "分析"
+  ],
+  "actual_answer": "好的，我来执行这个任务。但首先，我需要明确一下：**公司A和公司B具体是哪两家公司？** 请提供具体的公司名称，这样我才能进行搜索和分析。\n\n例如：\n- **公司A** = ？（如：腾讯控股）\n- **公司B** = ？（如：阿里巴巴）\n\n请告诉我公司名称，我会依次：\n1. 搜索公司A的年报\n2. 搜索公司B的年报\n3. 搜索公司A的最新公告\n4. 对比两家公司的营收规模\n5. 结合公告分析公司A的最新动向",
+  "keyword_coverage": 1.0,
+  "keywords_found": [
+    "营收",
+    "对比",
+    "分析"
+  ],
+  "keywords_missed": [],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 24.093577000006917,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:51:02",
+  "failure_cause": ""
+}

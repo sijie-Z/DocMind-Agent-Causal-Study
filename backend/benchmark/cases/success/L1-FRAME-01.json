@@ -1,0 +1,31 @@
+{
+  "question_id": "L1-FRAME-01",
+  "grade": "success",
+  "category": "framework",
+  "question": "找一份企业年报，用 SWOT 框架分析该公司。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "SWOT",
+    "优势",
+    "劣势",
+    "机会",
+    "威胁"
+  ],
+  "actual_answer": "根据知识库的检索结果，未能找到直接针对“企业年报”进行SWOT分析的文档。不过，我找到了以下相关材料：\n\n- **数据安全管理条例（2024修订）**：企业需建立更严格的数据分类分级制度，未按规定最高可罚100万元。\n- **人工智能行业研究报告（2024Q4）**：AI核心产业规模目标超5000亿元，多模态大模型等技术快速发展，企业IT支出预计增长12%。\n- **企业战略分析框架指南**：介绍了SWOT分析的基本概念（优势、劣势、机会、威胁）。\n\n当前缺乏具体的年报数据，无法生成完整的SWOT分析报告。建议您提供更详细的企业年报内容（如财务数据、业务板块、市场表现等），我可以基于这些信息进行针对性的结构化分析。",
+  "keyword_coverage": 1.0,
+  "keywords_found": [
+    "SWOT",
+    "优势",
+    "劣势",
+    "机会",
+    "威胁"
+  ],
+  "keywords_missed": [],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 25.719554500014056,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:40:15",
+  "failure_cause": ""
+}

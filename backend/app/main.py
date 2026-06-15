@@ -1,5 +1,5 @@
 """
-DocMind AI Knowledge Base System - Main Application Entry
+DocMind AI Agent System - Main Application Entry (PER Architecture)
 """
 import asyncio
 import logging
@@ -157,11 +157,11 @@ OPENAPI_TAGS = [
     {"name": "认证", "description": "用户注册、登录、Token 管理、密码修改"},
     {"name": "用户管理", "description": "用户 CRUD、个人资料、会话管理、审计日志"},
     {"name": "文件管理", "description": "文件上传、下载、MinIO 存储"},
-    {"name": "文档管理(RAG)", "description": "文档解析、向量化、知识库构建"},
+    {"name": "文档管理", "description": "文档解析、向量化、知识库构建（RAG 管线）"},
     {"name": "聊天", "description": "会话管理、消息发送、WebSocket/SSE 流式问答"},
     {"name": "知识库", "description": "知识库 CRUD、检索、统计"},
     {"name": "组织管理", "description": "组织 CRUD、成员管理、角色权限"},
-    {"name": "系统监控", "description": "性能指标、健康检查、告警、RAG 评估"},
+    {"name": "系统监控", "description": "性能指标、健康检查、告警、RAG 质量评估"},
     {"name": "通知管理", "description": "通知 CRUD、已读标记、WebSocket 推送"},
     {"name": "提示词管理", "description": "提示词模板 CRUD"},
     {"name": "操作手册", "description": "系统操作手册管理"},
@@ -173,7 +173,7 @@ OPENAPI_TAGS = [
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="基于 DeepSeek 的企业级 RAG 知识库系统，支持文档管理、混合检索、流式问答、自主 Agent",
+    description="基于 DeepSeek 的企业级 AI Agent 系统（PER 架构），支持自主推理、工具调用、记忆学习、文档管理、混合检索与流式问答",
     lifespan=lifespan,
     openapi_tags=OPENAPI_TAGS,
     contact={"name": "DocMind Team", "url": "https://github.com/docmind"},

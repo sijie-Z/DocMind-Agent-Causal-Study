@@ -18,4 +18,9 @@ from app.agent.tools import (
     translation,  # noqa: F401
     utility,  # noqa: F401
     web_search,  # noqa: F401
+    skills,  # noqa: F401
+    mcp_bridge,  # noqa: F401
 )
+
+# v2.1: 企业协同工具集
+from app.agent.tools import feishu  # noqa: F401

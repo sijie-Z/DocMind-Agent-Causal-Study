@@ -88,14 +88,32 @@ class Reflector:
         self,
         plan: Plan,
         results: dict[str, Any],
+        ctx=None,
     ) -> AsyncGenerator[AgentEvent, ReflectionResult]:
         """Evaluate execution results and decide next action.
 
         Yields: thinking and reflection events
         Returns: ReflectionResult (via generator return sent from caller)
         """
+        lf = None
+        span = None
+        try:
+            from app.agent.observability import get_langfuse
+            lf = get_langfuse()
+            if lf:
+                span = lf.span(name="reflection", input={
+                "plan_goal": plan.goal,
+                "step_count": len(plan.steps),
+                "completed": plan.completed_steps,
+                "failed": plan.failed_steps,
+            })
+        except Exception:
+            pass
+
         # Quick check: if all steps succeeded and had meaningful output, fast-pass
         if self._quick_pass_check(plan, results):
+            if span:
+                span.end(output="quick_pass")
             yield AgentEvent(
                 type="reflection",
                 reflection_result="pass",
@@ -134,6 +152,8 @@ class Reflector:
 
         except Exception as e:
             logger.error(f"Reflection LLM call failed: {e}")
+            if span:
+                span.end(output=f"error: {e}", level="ERROR")
             # Default to pass on error (don't block the user)
             yield AgentEvent(
                 type="reflection",
@@ -149,6 +169,9 @@ class Reflector:
         reasoning = reflection_data.get("reasoning", "")
         AGENT_REFLECTION_DECISIONS.labels(decision=decision).inc()
 
+        if ctx:
+            ctx.record_decision("reflect", decision, reasoning[:200])
+
         # Yield reflection event
         yield AgentEvent(
             type="reflection",
@@ -160,6 +183,9 @@ class Reflector:
 
         # Record insight
         await self._record_reflection(plan, decision, reasoning)
+
+        if span:
+            span.end(output=f"decision={decision}, achievement={reflection_data.get('achievement', '?')}")
 
         ReflectionResult(
             achievement=reflection_data.get("achievement", 85),

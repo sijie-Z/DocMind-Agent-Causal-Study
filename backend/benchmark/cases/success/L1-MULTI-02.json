@@ -1,0 +1,32 @@
+{
+  "question_id": "L1-MULTI-02",
+  "grade": "success",
+  "category": "multi_step",
+  "question": "搜索同行业三家公司的年报，分别做 SWOT 分析，综合给出行业竞争格局的判断。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "SWOT",
+    "竞争",
+    "行业",
+    "综合",
+    "对比"
+  ],
+  "actual_answer": "根据已有的文档，我找到了两家同行业公司的年报：**星辰科技 2024 年度财务报告**和**远航制造 2024 年度财务报告**。目前缺少第三家公司的年报，因此无法完成完整的 SWOT 分析和行业竞争格局判断。如果您能提供第三家公司的年报文件，我可以为您进行综合分析。",
+  "keyword_coverage": 0.8,
+  "keywords_found": [
+    "SWOT",
+    "竞争",
+    "行业",
+    "综合"
+  ],
+  "keywords_missed": [
+    "对比"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 28.242953499997384,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T14:04:15",
+  "failure_cause": ""
+}

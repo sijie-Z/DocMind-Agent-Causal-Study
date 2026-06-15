@@ -1,0 +1,69 @@
+<template>
+  <div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750 transition-colors"
+      @click="open = !open"
+    >
+      <div class="flex items-center gap-2">
+        <span>{{ title }}</span>
+        <slot name="header-extra" />
+        <span class="text-gray-400 font-normal">({{ hits.length }})</span>
+      </div>
+      <span class="text-gray-400">{{ open ? '▲' : '▼' }}</span>
+    </button>
+
+    <div v-if="open" class="divide-y divide-gray-100 dark:divide-gray-800">
+      <div
+        v-for="(hit, i) in hits"
+        :key="hit.id + i"
+        class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+      >
+        <div class="flex items-center justify-between mb-0.5">
+          <span class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate max-w-[70%]">
+            <span class="text-gray-400 mr-1">#{{ i + 1 }}</span>
+            {{ hit.filename }}
+          </span>
+          <span class="text-xs font-mono tabular-nums" :class="scoreColorClass(hit.score)">
+            {{ scoreLabel }}: {{ hit.score }}
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs text-gray-400">
+          <span v-if="hit.keyword_rank != null" class="px-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-500">kw:#{{ hit.keyword_rank }}</span>
+          <span v-if="hit.vector_rank != null" class="px-1 rounded bg-green-50 dark:bg-green-900/20 text-green-500">vec:#{{ hit.vector_rank }}</span>
+          <span v-if="hit.keyword_score != null" class="text-gray-400">kw:{{ hit.keyword_score }}</span>
+          <span v-if="hit.vector_score != null" class="text-gray-400">vec:{{ hit.vector_score }}</span>
+          <span v-if="hit.rewrite_hits && hit.rewrite_hits > 1" class="text-orange-500">rewrite×{{ hit.rewrite_hits }}</span>
+        </div>
+
+        <p v-if="hit.snippet" class="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed line-clamp-2">
+          {{ hit.snippet }}
+        </p>
+      </div>
+
+      <div v-if="hits.length === 0" class="px-3 py-2 text-xs text-gray-400 italic">
+        无结果
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import type { DebugHit } from '@/types/chat'
+
+defineProps<{
+  title: string
+  hits: DebugHit[]
+  scoreLabel: string
+}>()
+
+const open = ref(true)
+
+const scoreColorClass = (score: number): string => {
+  if (score >= 2.0) return 'text-green-600 dark:text-green-400 font-bold'
+  if (score >= 1.0) return 'text-blue-600 dark:text-blue-400'
+  if (score >= 0.3) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-gray-400'
+}
+</script>

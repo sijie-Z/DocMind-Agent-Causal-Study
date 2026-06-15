@@ -67,6 +67,10 @@ class Executor:
     # Number of consecutive low-gain steps before prompting early termination
     MAX_LOW_GAIN_STEPS: int = 2
 
+    # Circuit breaker: skip remaining steps after this many consecutive failures
+    MAX_CONSECUTIVE_FAILURES: int = 3
+    TOOL_TIMEOUT_SECONDS: float = 30.0
+
     def __init__(
         self,
         openai_client: AsyncOpenAI,
@@ -79,6 +83,8 @@ class Executor:
         # Information gain tracking: hashes of seen result content
         self._seen_fingerprints: set[int] = set()
         self._consecutive_low_gain: int = 0
+        # Circuit breaker: skip steps after N consecutive failures
+        self._consecutive_failures: int = 0
 
     async def execute(
         self,
@@ -87,6 +93,7 @@ class Executor:
         organization_id: int = 1,
         user_id: int = 0,
         enable_thinking: bool = True,
+        ctx: Any = None,  # ExecutionContext
     ) -> AsyncGenerator[AgentEvent, str]:
         """Execute plan steps in dependency order.
 
@@ -106,6 +113,24 @@ class Executor:
                         s.status = "skipped"
                 break
 
+            # Circuit breaker: skip remaining steps after too many consecutive failures
+            if self._consecutive_failures >= self.MAX_CONSECUTIVE_FAILURES:
+                remaining = [s for s in plan.steps if s.status == "pending"]
+                if remaining:
+                    logger.warning(
+                        "Circuit breaker: %d consecutive failures, skipping %d remaining step(s)",
+                        self._consecutive_failures, len(remaining),
+                    )
+                    for s in remaining:
+                        s.status = "skipped"
+                    yield AgentEvent(
+                        type="thinking",
+                        content=f"⏱️ 连续 {self._consecutive_failures} 次步骤失败，剩余步骤已跳过",
+                        thinking_type="evaluation",
+                        plan_id=plan.id,
+                    )
+                    break
+
             # Information gain: auto-skip if too many consecutive low-gain steps
             if self._consecutive_low_gain >= self.MAX_LOW_GAIN_STEPS:
                 remaining = [s for s in plan.steps if s.status == "pending"]
@@ -121,23 +146,27 @@ class Executor:
             # Execute ready steps — parallel when multiple independent steps exist
             if len(ready_steps) > 1:
                 async for event in self._execute_steps_parallel(
-                    ready_steps, plan, history, organization_id, user_id, enable_thinking,
+                    ready_steps, plan, history, organization_id, user_id, enable_thinking, ctx=ctx,
                 ):
                     yield event
             else:
                 async for event in self._execute_single_step(
-                    ready_steps[0], plan, history, organization_id, user_id, enable_thinking,
+                    ready_steps[0], plan, history, organization_id, user_id, enable_thinking, ctx=ctx,
                 ):
                     yield event
 
         return
 
     async def _execute_single_step(
-        self, step, plan, history, organization_id, user_id, enable_thinking,
+        self, step, plan, history, organization_id, user_id, enable_thinking, ctx=None,
     ) -> AsyncGenerator[AgentEvent, None]:
         """Execute a single step (sequential path)."""
         step.status = "running"
         step_result = ""
+
+        if ctx:
+            ctx.current_step_id = step.id
+            ctx.record_decision("execute", "begin_step", step.description)
 
         yield AgentEvent(
             type="thinking",
@@ -153,7 +182,7 @@ class Executor:
         async for event in self._execute_step_with_retry(
             step=step, plan=plan, history=history,
             organization_id=organization_id, user_id=user_id,
-            enable_thinking=enable_thinking,
+            enable_thinking=enable_thinking, ctx=ctx,
         ):
             if event.type == "chunk":
                 step_result += event.content
@@ -163,6 +192,7 @@ class Executor:
         if step.status != "failed":
             step.status = "completed"
             plan.completed_steps += 1
+            self._consecutive_failures = 0  # reset circuit breaker on success
             self.memory.store_step_result(step.id, {
                 "description": step.description, "status": step.status, "result": step.result,
             })
@@ -170,6 +200,7 @@ class Executor:
             self._update_info_gain(step_result or "")
         else:
             plan.failed_steps += 1
+            self._consecutive_failures += 1  # increment circuit breaker
 
         await self.memory.record_experience(
             success=(step.status == "completed"),
@@ -186,7 +217,7 @@ class Executor:
         )
 
     async def _execute_steps_parallel(
-        self, steps, plan, history, organization_id, user_id, enable_thinking,
+        self, steps, plan, history, organization_id, user_id, enable_thinking, ctx=None,
     ) -> AsyncGenerator[AgentEvent, None]:
         """Execute multiple independent steps concurrently."""
         # Mark all as running
@@ -212,7 +243,7 @@ class Executor:
             async for event in self._execute_step_with_retry(
                 step=step, plan=plan, history=history,
                 organization_id=organization_id, user_id=user_id,
-                enable_thinking=enable_thinking,
+                enable_thinking=enable_thinking, ctx=ctx,
             ):
                 if event.type == "chunk":
                     step_result += event.content
@@ -236,12 +267,14 @@ class Executor:
                 if step.status != "failed":
                     step.status = "completed"
                     plan.completed_steps += 1
+                    self._consecutive_failures = 0
                     self._update_info_gain(step_result or "")
                     self.memory.store_step_result(step.id, {
                         "description": step.description, "status": step.status, "result": step.result,
                     })
                 else:
                     plan.failed_steps += 1
+                    self._consecutive_failures += 1
 
                 await self.memory.record_experience(
                     success=(step.status == "completed"),
@@ -265,11 +298,20 @@ class Executor:
         organization_id: int,
         user_id: int,
         enable_thinking: bool,
+        ctx=None,
     ) -> AsyncGenerator[AgentEvent, None]:
-        """Execute a single step with retry on failure."""
-        last_error = ""
+        """Execute a single step with retry on failure.
 
-        for attempt in range(self.config.max_retries_per_step + 1):
+        Semantic-aware behaviour:
+            retry_strategy="auto_retry" (default) → retry with backoff
+            retry_strategy="ask_user"             → skip after 1 attempt
+            retry_strategy="skip"                 → skip immediately on first failure
+            fallback_tool set                     → try alternate tool after retries exhaust
+        """
+        last_error = ""
+        max_attempts = 1 if step.retry_strategy in ("ask_user", "skip") else self.config.max_retries_per_step + 1
+
+        for attempt in range(max_attempts):
             if attempt > 0:
                 step.retry_count = attempt
                 yield AgentEvent(
@@ -294,6 +336,7 @@ class Executor:
                 user_id=user_id,
                 enable_thinking=enable_thinking,
                 error_context=last_error if attempt > 0 else "",
+                ctx=ctx,
             ):
                 if event.type == "tool_error" or event.type == "error":
                     had_error = True
@@ -308,20 +351,79 @@ class Executor:
                     step.result = result_text
                 return
 
-            if had_error and attempt < self.config.max_retries_per_step:
+            # Skip retry for "skip" strategy — single attempt only
+            if had_error and step.retry_strategy == "skip":
+                break
+
+            if had_error and attempt < max_attempts - 1:
                 continue  # retry
 
-        # All retries exhausted
+        # ── Retries exhausted — try fallback_tool if available ──
+        if had_error and step.fallback_tool and step.retry_strategy != "skip":
+            logger.info(
+                "Retries exhausted for step %s, trying fallback tool '%s'",
+                step.id, step.fallback_tool,
+            )
+            yield AgentEvent(
+                type="thinking",
+                content=f"主工具失败，尝试备用工具 {step.fallback_tool}...",
+                thinking_type="correction",
+                plan_id=plan.id,
+                plan_step_id=step.id,
+                retry_attempt=step.retry_count + 1,
+                retry_hint=f"fallback: {step.fallback_tool}",
+            )
+
+            # Temporarily swap the tool hint and re-run once
+            original_hint = step.tool_hint
+            step.tool_hint = step.fallback_tool
+            step.retry_count = 0  # fresh start for fallback
+
+            fallback_had_error = False
+            async for event in self._execute_step_once(
+                step=step,
+                plan=plan,
+                history=history,
+                organization_id=organization_id,
+                user_id=user_id,
+                enable_thinking=enable_thinking,
+                error_context=f"主工具失败，尝试备用工具: {last_error[:200]}",
+                ctx=ctx,
+            ):
+                if event.type == "tool_error" or event.type == "error":
+                    fallback_had_error = True
+                    last_error = event.content
+                elif event.type == "chunk":
+                    result_text += event.content
+                yield event
+
+            if not fallback_had_error and result_text:
+                step.result = result_text
+                step.tool_hint = original_hint  # restore for consistency
+                return
+
+            # Fallback also failed — restore original hint and fall through
+            step.tool_hint = original_hint
+
+        # All retries exhausted — graceful degradation
         step.status = "failed"
         step.error_context = last_error
         yield AgentEvent(
             type="tool_error",
             tool_name=step.tool_hint or "unknown",
-            content=f"步骤失败（已重试 {self.config.max_retries_per_step} 次）: {last_error[:300]}",
+            content=f"步骤失败（已重试 {step.retry_count} 次）: {last_error[:300]}",
             plan_id=plan.id,
             plan_step_id=step.id,
             retry_attempt=step.retry_count,
         )
+        # Emit a fallback chunk so the caller sees something, not silence
+        if last_error:
+            yield AgentEvent(
+                type="chunk",
+                content=f"[该步骤因 API 连接问题未能完成，已跳过。问题: {last_error[:100]}]",
+                plan_id=plan.id,
+                plan_step_id=step.id,
+            )
 
     async def _execute_step_once(
         self,
@@ -332,8 +434,28 @@ class Executor:
         user_id: int,
         enable_thinking: bool,
         error_context: str = "",
+        ctx=None,
     ) -> AsyncGenerator[AgentEvent, None]:
         """Execute a single attempt of a plan step."""
+        step_start = time.perf_counter()
+        lf = None
+        step_span = None
+        try:
+            from app.agent.observability import get_langfuse
+            lf = get_langfuse()
+            if lf:
+                step_span = lf.span(
+                name="execute_step",
+                input={
+                    "step_id": step.id,
+                    "description": step.description,
+                    "tool_hint": step.tool_hint,
+                    "retry": step.retry_count,
+                },
+            )
+        except Exception:
+            pass
+
         # Build messages for this step
         memory_context = await self.memory.get_context_for_query(step.description)
         previous_results = self._get_previous_results(step.dependencies)
@@ -367,6 +489,16 @@ class Executor:
         tools = self._get_step_tools(step)
 
         try:
+            # Trace LLM generation
+            llm_span = None
+            if lf:
+                llm_span = lf.generation(
+                    name="llm_call",
+                    model=self.config.get_quick_model(),
+                    messages=messages,
+                    input={"tool_count": len(tools) if tools else 0, "step_id": step.id},
+                )
+
             response = await self.client.chat.completions.create(
                 model=self.config.get_quick_model(),
                 messages=messages,
@@ -376,8 +508,17 @@ class Executor:
                 max_tokens=self.config.max_tokens,
                 timeout=self.config.timeout,
             )
+
+            if lf and llm_span:
+                tool_names = [tc.function.name for tc in (response.choices[0].message.tool_calls or [])]
+                llm_span.end(
+                    output=response.choices[0].message.content or f"tool_calls: {tool_names}",
+                    usage=response.usage,
+                )
         except Exception as e:
             logger.error(f"LLM call failed for step {step.id}: {e}")
+            if lf and step_span:
+                step_span.end(output=f"llm_error: {e}", level="ERROR")
             yield AgentEvent(
                 type="tool_error",
                 tool_name=step.tool_hint or "llm",
@@ -392,6 +533,8 @@ class Executor:
         # If no tool calls, just return the text
         if not message.tool_calls:
             content = message.content or ""
+            if lf and step_span:
+                step_span.end(output=f"step completed by LLM ({len(content or '')} chars)")
             if content:
                 yield AgentEvent(
                     type="chunk",
@@ -425,14 +568,17 @@ class Executor:
                 plan_progress=plan.progress,
             )
 
-            # Execute tool
+            # Execute tool (with timeout)
             start = time.perf_counter()
             try:
-                result = await tool_registry.execute(
-                    func.name,
-                    args,
-                    organization_id=organization_id,
-                    user_id=user_id,
+                result = await asyncio.wait_for(
+                    tool_registry.execute(
+                        func.name,
+                        args,
+                        organization_id=organization_id,
+                        user_id=user_id,
+                    ),
+                    timeout=self.TOOL_TIMEOUT_SECONDS,
                 )
                 elapsed = (time.perf_counter() - start) * 1000
                 AGENT_TOOL_LATENCY.observe(elapsed / 1000)
@@ -462,6 +608,8 @@ class Executor:
                         plan_progress=plan.progress,
                     )
                     tool_results.append({"tool": func.name, "result": result})
+                    if ctx:
+                        ctx.add_finding(step.id, result[:200], func.name)
 
             except Exception as e:
                 elapsed = (time.perf_counter() - start) * 1000
@@ -494,6 +642,22 @@ class Executor:
                     plan_step_id=step.id,
                     plan_progress=plan.progress,
                 )
+
+        used_tools = [r["tool"] for r in tool_results] if tool_results else []
+        if lf and step_span:
+            result_len = len(synthesis) if tool_results and synthesis else 0
+            step_span.end(output=f"tools used: {used_tools}, result_len={result_len}")
+
+        if ctx:
+            step_duration = (time.perf_counter() - step_start) * 1000
+            ctx.complete_step(
+                step_id=step.id,
+                description=step.description,
+                tool=used_tools[0] if used_tools else None,
+                status="completed",
+                result=synthesis if tool_results and synthesis else None,
+                duration=step_duration,
+            )
 
     async def _synthesize_tool_results(
         self,

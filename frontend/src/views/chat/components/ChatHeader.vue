@@ -31,7 +31,20 @@
       </div>
     </div>
 
-    <div class="flex items-center space-x-2">
+    <div class="flex items-center space-x-1">
+      <n-tooltip trigger="hover">
+        <template #trigger>
+          <n-button
+            quaternary circle size="small"
+            :type="debugEnabled ? 'warning' : 'default'"
+            @click="$emit('toggleDebug')"
+            class="text-gray-500 dark:text-gray-400"
+          >
+            <template #icon><n-icon><BugOutline /></n-icon></template>
+          </n-button>
+        </template>
+        {{ debugEnabled ? '关闭调试' : '检索调试' }}
+      </n-tooltip>
       <n-tooltip trigger="hover">
         <template #trigger>
           <n-button quaternary circle size="small" @click="$emit('exportChat')" class="text-gray-500 dark:text-gray-400" :disabled="!hasConversation">
@@ -54,7 +67,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { MenuOutline, CloseOutline, SparklesOutline, TrashOutline, AttachOutline, DownloadOutline } from '@vicons/ionicons5'
+import { MenuOutline, CloseOutline, SparklesOutline, TrashOutline, AttachOutline, DownloadOutline, BugOutline } from '@vicons/ionicons5'
 
 const { t } = useI18n()
 
@@ -63,6 +76,7 @@ defineProps<{
   title?: string
   hasConversation: boolean
   isBoundMode: boolean
+  debugEnabled: boolean
 }>()
 
 defineEmits<{
@@ -70,5 +84,6 @@ defineEmits<{
   clearChat: []
   unbind: []
   exportChat: []
+  toggleDebug: []
 }>()
 </script>

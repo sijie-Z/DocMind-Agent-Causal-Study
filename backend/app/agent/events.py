@@ -30,6 +30,7 @@ EventType = Literal[
     "chunk",
     "done",
     "error",
+    "execution_step_result",
 ]
 
 ThinkingType = Literal["reasoning", "planning", "evaluation", "correction"]

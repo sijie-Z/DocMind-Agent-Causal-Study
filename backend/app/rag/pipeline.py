@@ -66,13 +66,19 @@ class RAGPipeline:
         organization_id: int,
         top_k: int = 5,
         document_ids: list[str] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Retrieve relevant documents with caching and retry."""
+        debug: bool = False,
+    ) -> tuple[list[dict[str, Any]], dict | None]:
+        """Retrieve relevant documents with caching and retry.
+
+        Returns (results, debug_info) — debug_info is None unless debug=True.
+        """
         start = time.perf_counter()
         RAG_RETRIEVAL_TOTAL.inc()
         RAG_PIPELINE_IN_FLIGHT.inc()
         self.metrics.inc("retrieval_total")
         self.metrics.record_event("retrieval", 1)
+
+        debug_info: dict | None = {"stages": {}} if debug else None
 
         try:
             # Exact cache (skip for document-specific queries)
@@ -92,7 +98,10 @@ class RAGPipeline:
                     RAG_RETRIEVAL_LATENCY.observe(time.perf_counter() - start)
                     self.metrics.inc("latency_count")
                     self.metrics.record_event("latency", elapsed)
-                    return cached
+                    if debug and debug_info is not None:
+                        debug_info["cache_hit"] = True
+                        debug_info["cache_type"] = "exact"
+                    return cached, debug_info
                 RAG_CACHE_MISSES.inc()
 
             # Semantic cache
@@ -114,7 +123,10 @@ class RAGPipeline:
                         self.metrics.record_event("latency", elapsed)
                         if not document_ids and sem_cached.get("sources"):
                             await self.cache.set(query, organization_id, top_k, sem_cached["sources"])
-                        return sem_cached.get("sources", [])
+                        if debug and debug_info is not None:
+                            debug_info["cache_hit"] = True
+                            debug_info["cache_type"] = "semantic"
+                        return sem_cached.get("sources", []), debug_info
 
                 # Query decomposition for complex queries
             sub_queries = [query]
@@ -144,13 +156,16 @@ class RAGPipeline:
                     try:
                         if attempt > 0:
                             self.metrics.inc("retry_total")
-                        sq_result, qv = await self.retriever.retrieve(
+                        sq_result, qv, dbg = await self.retriever.retrieve(
                             sq, organization_id,
                             max(top_k, int(settings.RAG_RERANK_TOP_N or 20)),
                             document_ids,
+                            debug=debug,
                         )
                         if not query_vector and qv:
                             query_vector = qv
+                        if debug and dbg and debug_info is not None:
+                            debug_info["stages"][sq] = dbg
                         break
                     except Exception as e:
                         RAG_RETRIEVAL_ERRORS.inc()
@@ -179,7 +194,22 @@ class RAGPipeline:
 
             # Rerank: cross-encoder / LLM reorder, then trim to top_k
             if result:
+                pre_rerank = list(result) if debug else None
                 result = await rerank(query, result, self.rerank_client)
+                if debug and debug_info is not None and pre_rerank:
+                    debug_info["rerank_result"] = [
+                        {
+                            "id": r.get("_id"),
+                            "filename": (r.get("_source") or {}).get("filename", "未知"),
+                            "score": round(float(r.get("_score", 0)), 4),
+                            "snippet": ((r.get("_source") or {}).get("content", "") or "")[:200],
+                        }
+                        for r in result[:top_k]
+                    ]
+                    debug_info["rerank_reorder"] = [
+                        {"id": r.get("_id"), "filename": (r.get("_source") or {}).get("filename", "")}
+                        for r in result[:top_k]
+                    ]
                 result = result[:top_k]
 
             if not document_ids:
@@ -195,7 +225,10 @@ class RAGPipeline:
             RAG_RETRIEVAL_LATENCY.observe(time.perf_counter() - start)
             self.metrics.inc("latency_count")
             self.metrics.record_event("latency", elapsed)
-            return result
+            if debug and debug_info is not None:
+                debug_info["total_results"] = len(result)
+                debug_info["elapsed_ms"] = round(elapsed, 2)
+            return result, debug_info
         finally:
             RAG_PIPELINE_IN_FLIGHT.dec()
 
@@ -217,6 +250,10 @@ class RAGPipeline:
         self.metrics.inc("total_input_tokens", input_tokens)
         self.metrics.inc("total_output_tokens", output_tokens)
         self.metrics.inc("llm_request_count")
+        self._last_token_usage = (input_tokens, output_tokens)
+
+    def get_last_token_usage(self) -> tuple[int, int] | None:
+        return getattr(self, "_last_token_usage", None)
 
     def get_metrics(self, window_seconds: int = 0) -> dict[str, Any]:
         return self.metrics.get_snapshot(window_seconds)

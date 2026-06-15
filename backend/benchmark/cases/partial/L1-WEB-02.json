@@ -1,0 +1,30 @@
+{
+  "question_id": "L1-WEB-02",
+  "grade": "partial",
+  "category": "web_search",
+  "question": "搜索最新的行业监管政策变动，对比知识库中已有的政策文档，找出新增或变化的内容。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "政策",
+    "变化",
+    "对比",
+    "新增"
+  ],
+  "actual_answer": "抱歉，我无法完成这项任务。因为检索知识库文档时遇到了系统错误，无法获取已有的政策文档列表，因此无法对比最新的监管政策变动。建议稍后再试，或联系管理员检查系统状态。",
+  "keyword_coverage": 0.5,
+  "keywords_found": [
+    "政策",
+    "对比"
+  ],
+  "keywords_missed": [
+    "变化",
+    "新增"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 24.81470969998918,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:50:22",
+  "failure_cause": ""
+}

@@ -4,6 +4,8 @@ from app.models.document import Document
 from app.models.knowledge_job import KnowledgeJobStatus, KnowledgeProcessingJob
 from app.models.manual import SystemManual
 from app.models.notification import Notification
+from app.models.prompt_version import PromptTemplateVersion
+from app.models.token_usage import TokenUsageRecord
 from app.models.organization import Organization, user_organization
 from app.models.prompt import PromptTemplate
 from app.models.rbac import (
@@ -27,6 +29,8 @@ __all__ = [
     "ChatMessage",
     "Notification",
     "PromptTemplate",
+    "PromptTemplateVersion",
+    "TokenUsageRecord",
     "SystemManual",
     "Permission",
     "Role",

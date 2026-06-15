@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     notifications,
     organizations,
     prompts,
+    token_usage,
     user_settings,
     users,
     workflow,
@@ -37,6 +38,7 @@ api_router.include_router(organizations.router, prefix="/organizations", tags=["
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["系统监控"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["通知管理"])
 api_router.include_router(prompts.router, prefix="/prompts", tags=["提示词管理"])
+api_router.include_router(token_usage.router, prefix="/token-usage", tags=["Token用量"])
 api_router.include_router(manuals.router, prefix="/manuals", tags=["操作手册"])
 api_router.include_router(workflow.router, prefix="/workflows", tags=["Agent工作流"])
 api_router.include_router(memory.router, prefix="/memory", tags=["Agent记忆"])

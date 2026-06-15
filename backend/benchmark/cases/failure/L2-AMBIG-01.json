@@ -1,0 +1,19 @@
+{
+  "question_id": "L2-AMBIG-01",
+  "grade": "failure",
+  "category": "ambiguity",
+  "question": "分析苹果。",
+  "difficulty": "hard",
+  "expected_keywords": [],
+  "actual_answer": "根据当前深度研究的结果，未能从外部搜索或内部知识库中找到关于“苹果”的有效信息。建议您提供更具体的查询方向或关键词，以便进一步协助您。根据本次深度研究的结果，我未能找到关于“苹果”的有效信息。主要原因是“苹果”这个词既可以指水果，也可以指科技公司Apple Inc.，导致系统无法自动聚焦；同时内部知识库中也没有相关文档。\n\n建议您明确具体的研究对象，例如：\n- 如果是科技公司，请提供“Apple Inc. 财务报告”等更精确的描述；\n- 如果是水果产业，请提供“苹果种植 行业分析”等关键词。\n\n也可以先上传相关文档（如年报、行业报告）到知识库，我再帮您分析。有什么其他需要帮忙的吗？",
+  "keyword_coverage": 0.0,
+  "keywords_found": [],
+  "keywords_missed": [],
+  "step_count": 2,
+  "tool_failures": 0,
+  "duration": 51.7704165999894,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:52:20",
+  "failure_cause": "UNKNOWN"
+}

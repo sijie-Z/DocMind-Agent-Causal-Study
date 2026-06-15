@@ -1,0 +1,32 @@
+{
+  "question_id": "L1-CROSS-03",
+  "grade": "partial",
+  "category": "cross_doc",
+  "question": "搜索行业政策文件和券商研报，综合判断某个行业未来一年的发展趋势。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "行业",
+    "趋势",
+    "政策",
+    "分析",
+    "综合"
+  ],
+  "actual_answer": "很抱歉，我现在无法搜索行业政策文件和券商研报，因为系统内部出现了一个临时故障。请稍后再试，或联系技术支持人员处理。",
+  "keyword_coverage": 0.4,
+  "keywords_found": [
+    "行业",
+    "政策"
+  ],
+  "keywords_missed": [
+    "趋势",
+    "分析",
+    "综合"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 21.415243700001156,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:44:36",
+  "failure_cause": ""
+}

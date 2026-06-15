@@ -1,0 +1,29 @@
+{
+  "question_id": "L1-DOC-01",
+  "grade": "failure",
+  "category": "single_doc",
+  "question": "从知识库中找一份企业年报，提取营收、净利润、毛利率三个核心指标最近三年的变化趋势。",
+  "difficulty": "medium",
+  "expected_keywords": [
+    "营收",
+    "净利润",
+    "毛利率",
+    "趋势"
+  ],
+  "actual_answer": "抱歉，我在查找企业年报数据时遇到了技术问题，暂时无法成功提取相关信息。请稍后再试，或检查知识库是否已上传所需文档。",
+  "keyword_coverage": 0.0,
+  "keywords_found": [],
+  "keywords_missed": [
+    "营收",
+    "净利润",
+    "毛利率",
+    "趋势"
+  ],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 24.505661199989845,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:38:14",
+  "failure_cause": "UNKNOWN"
+}

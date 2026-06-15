@@ -124,7 +124,7 @@ class AgentService:
         # Step 1: Retrieve context via RAG
         from app.dependencies import get_rag_pipeline
         pipeline = get_rag_pipeline()
-        context_docs = await pipeline.search_knowledge_base(
+        context_docs, _ = await pipeline.search_knowledge_base(
             query=query,
             organization_id=organization_id,
             top_k=top_k,

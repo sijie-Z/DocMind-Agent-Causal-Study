@@ -1,0 +1,70 @@
+<template>
+  <div class="space-y-2">
+    <!-- Final Context (LLM 实际收到的上下文) -->
+    <div v-if="debugData.final_context?.length" class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750 transition-colors"
+        @click="openFinal = !openFinal"
+      >
+        <div class="flex items-center gap-2">
+          <span>📄 最终 LLM 上下文</span>
+          <span class="text-gray-400 font-normal">({{ debugData.final_context.length }})</span>
+        </div>
+        <span class="text-gray-400">{{ openFinal ? '▲' : '▼' }}</span>
+      </button>
+      <div v-if="openFinal" class="divide-y divide-gray-100 dark:divide-gray-800">
+        <div
+          v-for="item in debugData.final_context"
+          :key="'ctx-' + item.rank"
+          class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        >
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
+                #{{ item.rank }}
+              </span>
+              <span class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate max-w-[60%]">
+                {{ item.filename }}
+              </span>
+            </div>
+            <span
+              class="text-xs font-mono tabular-nums"
+              :class="item.score >= 0.8 ? 'text-green-600' : item.score >= 0.5 ? 'text-blue-600' : 'text-yellow-600'"
+            >
+              score: {{ item.score }}
+            </span>
+          </div>
+          <pre class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap font-sans bg-gray-50 dark:bg-gray-900/30 p-2 rounded mt-1 max-h-24 overflow-y-auto">{{ item.content }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyword Top -->
+    <DebugSection v-if="debugData.keyword_top?.length" title="🔤 BM25 关键词检索" :hits="debugData.keyword_top" :score-label="'score'" />
+
+    <!-- Vector Top -->
+    <DebugSection v-if="debugData.vector_top?.length" title="🧠 向量相似度检索" :hits="debugData.vector_top" :score-label="'score'" />
+
+    <!-- RRF Result -->
+    <DebugSection v-if="debugData.rrf_result?.length" title="🔀 RRF 融合结果" :hits="debugData.rrf_result" :score-label="'score'">
+      <template #header-extra>
+        <span class="text-gray-400">(k=60)</span>
+      </template>
+    </DebugSection>
+
+    <!-- Rerank Result -->
+    <DebugSection v-if="debugData.rerank_result?.length" title="📊 Cross-Encoder 重排结果" :hits="debugData.rerank_result" :score-label="'score'" />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import type { RetrievalDebugData } from '@/types/chat'
+import DebugSection from './DebugSection.vue'
+
+defineProps<{
+  debugData: RetrievalDebugData
+}>()
+
+const openFinal = ref(true)
+</script>

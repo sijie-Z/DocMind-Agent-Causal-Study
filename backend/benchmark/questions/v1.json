@@ -1,0 +1,92 @@
+[
+    {
+        "id": "SD-001",
+        "category": "single_doc",
+        "question": "搜索知识库，找到最近上传的一份财务报告，提取其中的营收数据和增长率。",
+        "source_docs": [],
+        "expected_keywords": ["营收", "增长", "收入", "财务"],
+        "difficulty": "easy",
+        "description": "测试单文档检索和信息提取能力"
+    },
+    {
+        "id": "SD-002",
+        "category": "single_doc",
+        "question": "在知识库中搜索一份合同文件，总结其中的关键条款和赔偿条件。",
+        "source_docs": [],
+        "expected_keywords": ["条款", "赔偿", "合同", "责任"],
+        "difficulty": "easy",
+        "description": "测试合同文档的检索和关键信息提取"
+    },
+    {
+        "id": "SD-003",
+        "category": "single_doc",
+        "question": "查找知识库中关于行业政策的最新文档，列出主要的政策变化。",
+        "source_docs": [],
+        "expected_keywords": ["政策", "行业", "规定", "监管"],
+        "difficulty": "medium",
+        "description": "测试政策文档的检索和结构化总结"
+    },
+    {
+        "id": "CD-001",
+        "category": "cross_doc",
+        "question": "在知识库中找到两份同行业的公司报告，对比它们的营收规模和利润率的差异。",
+        "source_docs": [],
+        "expected_keywords": ["对比", "营收", "利润率", "差异", "高于"],
+        "difficulty": "hard",
+        "description": "测试跨文档对比分析能力"
+    },
+    {
+        "id": "CD-002",
+        "category": "cross_doc",
+        "question": "搜索知识库中最近两年的市场分析报告，总结市场趋势的变化。",
+        "source_docs": [],
+        "expected_keywords": ["趋势", "市场", "变化", "增长", "分析"],
+        "difficulty": "hard",
+        "description": "测试多文档趋势分析能力"
+    },
+    {
+        "id": "FA-001",
+        "category": "framework_analysis",
+        "question": "找到一份企业年报，使用 SWOT 框架分析该企业的竞争优势和潜在风险。",
+        "source_docs": [],
+        "expected_keywords": ["SWOT", "优势", "劣势", "机会", "威胁", "竞争"],
+        "difficulty": "hard",
+        "description": "测试框架分析工具调用能力"
+    },
+    {
+        "id": "FA-002",
+        "category": "framework_analysis",
+        "question": "搜索一份财务审计报告，进行财务健康度分析，评估企业的盈利能力、偿债能力和现金流状况。",
+        "source_docs": [],
+        "expected_keywords": ["盈利", "偿债", "现金流", "财务健康", "比率"],
+        "difficulty": "hard",
+        "description": "测试财务框架分析能力"
+    },
+    {
+        "id": "MR-001",
+        "category": "multi_step",
+        "question": "找到一份涉及法律风险的合同，用合同风险分析框架评估其主要风险点，然后生成一份简要的风险评估报告。",
+        "source_docs": [],
+        "expected_keywords": ["合同", "风险", "条款", "评估", "报告"],
+        "difficulty": "hard",
+        "description": "测试多步推理：检索→分析框架→生成报告"
+    },
+    {
+        "id": "MR-002",
+        "category": "multi_step",
+        "question": "在知识库中搜索三份关于同一行业（如新能源、医药、科技）的不同企业的分析报告，综合它们的关键发现，给出行业整体判断。",
+        "source_docs": [],
+        "expected_keywords": ["行业", "分析", "趋势", "综合", "判断", "对比"],
+        "difficulty": "hard",
+        "description": "测试多步推理：多文档检索→综合分析"
+    },
+    {
+        "id": "WS-001",
+        "category": "web_search",
+        "question": "搜索最新的 AI 行业融资动态，找出最近一个月内获得大额融资的 AI 公司及其融资金额。",
+        "source_docs": [],
+        "expected_keywords": ["融资", "AI", "人工智能", "投资", "美元"],
+        "difficulty": "medium",
+        "description": "测试外部搜索能力"
+    }
+]

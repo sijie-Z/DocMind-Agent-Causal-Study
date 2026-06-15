@@ -1,0 +1,29 @@
+{
+  "question_id": "L1-MULTI-01",
+  "grade": "success",
+  "category": "multi_step",
+  "question": "搜索知识库中一份涉密合同，用合同风险框架分析，然后生成一份风险评估报告。",
+  "difficulty": "hard",
+  "expected_keywords": [
+    "风险",
+    "合同",
+    "评估",
+    "报告"
+  ],
+  "actual_answer": "抱歉，我在知识库中未能找到您提到的涉密合同，因此无法进行风险分析和生成评估报告。同时，系统在检索文档时出现了临时性错误，建议您确认合同文件是否已正确上传至知识库，稍后再试。",
+  "keyword_coverage": 1.0,
+  "keywords_found": [
+    "风险",
+    "合同",
+    "评估",
+    "报告"
+  ],
+  "keywords_missed": [],
+  "step_count": 1,
+  "tool_failures": 0,
+  "duration": 27.13645190000534,
+  "trace_id": "",
+  "trace_url": "",
+  "timestamp": "2026-06-13T17:48:20",
+  "failure_cause": ""
+}
