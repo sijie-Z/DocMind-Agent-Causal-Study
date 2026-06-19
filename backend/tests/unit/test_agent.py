@@ -60,7 +60,7 @@ class TestToolRegistry:
         assert len(tools) == 1
         assert tools[0]["type"] == "function"
         assert tools[0]["function"]["name"] == "my_tool"
-        assert tools[0]["function"]["description"] == "My tool description"
+        assert tools[0]["function"]["description"] == "My tool description | (超时30s)"
         assert "parameters" in tools[0]["function"]
 
     @pytest.mark.asyncio

@@ -18,6 +18,7 @@ _TEST_ENV = {
     "EMBEDDING_API_KEY": "test-key",
     "ENABLE_RATE_LIMIT": "false",
     "ENABLE_MONITORING": "false",
+    "PROMETHEUS_ENABLED": "true",
 }
 
 # 应用测试环境变量

@@ -24,6 +24,7 @@ class _NoopMetric:
     """Silent no-op — accepts all method calls, does nothing."""
     __slots__ = ()
     def inc(self, amount=1, **labels): pass
+    def dec(self, amount=1, **labels): pass
     def observe(self, amount, **labels): pass
     def labels(self, **label_values): return self
     def set(self, value): pass
@@ -40,6 +41,8 @@ class _LazyMetric:
         return r.get(self._name) if r is not None else _NOOP
     def inc(self, amount=1, **labels):
         self._get().inc(amount, **labels)
+    def dec(self, amount=1, **labels):
+        self._get().dec(amount, **labels)
     def observe(self, amount, **labels):
         self._get().observe(amount, **labels)
     def labels(self, **label_values):
