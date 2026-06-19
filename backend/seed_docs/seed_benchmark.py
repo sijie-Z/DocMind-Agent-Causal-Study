@@ -10,7 +10,7 @@ import json
 import logging
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -180,19 +180,19 @@ async def main():
     import logging
     logging.basicConfig(level=logging.INFO)
 
+    from sqlalchemy import delete, select
+
     from app.core.config import settings
     from app.core.database import AsyncSessionLocal, init_db
     from app.core.elasticsearch import (
-        init_elasticsearch,
-        recreate_knowledge_index,
-        es_client,
         _create_index_if_not_exists,
+        es_client,
+        init_elasticsearch,
     )
     from app.models.document import Document, DocumentChunk, DocumentStatus, DocumentType
     from app.models.organization import Organization
     from app.models.user import User
     from app.services.embedding_service import embedding_service
-    from sqlalchemy import delete, select
 
     await init_db()
     await init_elasticsearch()
@@ -232,7 +232,7 @@ async def main():
 
         # ── Create documents ──
         all_chunks = []  # (chunk_text, doc_id, chunk_index, section_title, chunk_id, filename)
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
 
         for doc_info in DOCUMENTS:
             doc_id = str(uuid.uuid4())

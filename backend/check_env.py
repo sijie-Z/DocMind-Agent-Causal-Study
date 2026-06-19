@@ -1,15 +1,17 @@
 import asyncio
-import sys
 import os
+import sys
+
+from aiokafka import AIOKafkaProducer
 from minio import Minio
-from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
-from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # Add current dir to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app.core.config import settings
+
 
 async def check_mysql():
     print(f"Checking MySQL ({settings.DATABASE_URL})...", end=" ")

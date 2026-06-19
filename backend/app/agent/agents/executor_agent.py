@@ -29,7 +29,6 @@ import asyncio
 import json
 import logging
 import time
-import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -38,7 +37,7 @@ from app.agent.events import AgentEvent
 from app.agent.exec_context import ExecutionContext
 from app.agent.message import AgentMessage, message_bus
 from app.agent.planner import PlanStep
-from app.agent.registry import ToolResult, tool_registry
+from app.agent.registry import ToolResult
 from app.agent.tracing import ToolCallRecord, get_trace_store
 
 logger = logging.getLogger(__name__)
@@ -124,7 +123,7 @@ class ExecutorAgent:
         step_results: list[dict[str, Any]] = []
         total = len(steps)
         done = 0
-        had_failure = False
+        done = 0
 
         while done < total:
             # Find ready steps (all dependencies satisfied)
@@ -167,7 +166,7 @@ class ExecutorAgent:
                         for s in group_steps
                     ]
                     results = await asyncio.gather(*tasks)
-                    for step, result in zip(group_steps, results):
+                    for step, result in zip(group_steps, results, strict=False):
                         for event in self._emit_step_events(step, result):
                             yield event
                         completed[step.id] = str(result.data)[:200] if result.success else ""
@@ -182,8 +181,7 @@ class ExecutorAgent:
                         })
                         if result.success:
                             done += 1
-                        else:
-                            had_failure = True
+
                 else:
                     # Sequential execution
                     for step in group_steps:
@@ -202,8 +200,6 @@ class ExecutorAgent:
                         })
                         if result.success:
                             done += 1
-                        else:
-                            had_failure = True
 
         # Yield step results back to Orchestrator (JSON-serialized)
         for sr in step_results:

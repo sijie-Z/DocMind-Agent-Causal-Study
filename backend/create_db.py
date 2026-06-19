@@ -1,5 +1,6 @@
 
 import os
+
 import pymysql
 
 host = os.getenv("DB_HOST", "localhost")

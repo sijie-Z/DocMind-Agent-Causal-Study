@@ -15,13 +15,13 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.agent.mining.miner import PatternMiner
 from app.agent.mining.analyzer import PatternAnalyzer
+from app.agent.mining.miner import PatternMiner
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class ReportGenerator:
         sequences = self.miner.load_sequences()
 
         return {
-            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "summary": {
                 "total_replays": len(sequences),
                 "total_patterns": len(patterns),
@@ -92,8 +92,8 @@ class ReportGenerator:
                 triggers = ", ".join(sk["triggers"])
                 status_icon = "✅" if sk["status"] == "suggested" else "⏳"
                 lines.append(f"### {status_icon} {sk['name']}")
-                lines.append(f"| Metric | Value |")
-                lines.append(f"|--------|-------|")
+                lines.append("| Metric | Value |")
+                lines.append("|--------|-------|")
                 lines.append(f"| Confidence | {sk['confidence']:.0%} |")
                 lines.append(f"| Tool Sequence | `{tools}` |")
                 lines.append(f"| Observations | {sk['observations']} |")

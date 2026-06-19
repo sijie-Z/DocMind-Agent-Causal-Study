@@ -7,11 +7,13 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["DOCMIND_DATABASE_URL"] = "sqlite+aiosqlite:///./docmind_dev.db"
 
-from app.core.database import AsyncSessionLocal
-from app.models.document import Document, DocumentChunk, DocumentStatus
-from app.core.elasticsearch import es_client, init_elasticsearch
-from sqlalchemy import select
 import logging
+
+from sqlalchemy import select
+
+from app.core.database import AsyncSessionLocal
+from app.core.elasticsearch import es_client, init_elasticsearch
+from app.models.document import Document, DocumentChunk, DocumentStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

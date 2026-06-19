@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -163,7 +162,7 @@ class ReplayEngine:
         steps_list_b = ctx_b.get("steps", [])
         max_steps = max(len(steps_list_a), len(steps_list_b))
 
-        lines.append(f"  ── Step Comparison ──")
+        lines.append("  ── Step Comparison ──")
         for i in range(max_steps):
             step_a = steps_list_a[i] if i < len(steps_list_a) else None
             step_b = steps_list_b[i] if i < len(steps_list_b) else None

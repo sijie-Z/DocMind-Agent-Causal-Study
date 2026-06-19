@@ -19,9 +19,9 @@
 import logging
 from typing import Any
 
-from app.agent.registry import register_tool, ToolResult
+from app.agent.registry import ToolResult, register_tool
 from app.agent.tools.feishu.auth import FeishuAuthError
-from app.agent.tools.feishu.client import FeishuAPIError, FeishuBitableClient, FEISHU_ERROR_MAP
+from app.agent.tools.feishu.client import FEISHU_ERROR_MAP, FeishuAPIError, FeishuBitableClient
 
 logger = logging.getLogger(__name__)
 

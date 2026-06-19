@@ -1,8 +1,11 @@
 import asyncio
+
+from sqlalchemy import update
+
 from app.core.database import engine
 from app.models.user import User
-from sqlalchemy import update, select
 from app.services.auth_service import auth_service
+
 
 async def main():
     print("正在连接数据库并修复管理员账号...")
@@ -21,6 +24,7 @@ async def main():
         if result.rowcount == 0:
             print("未找到 admin 用户，正在重新创建...")
             from datetime import datetime
+
             # 如果不存在，直接插入一个新的
             from sqlalchemy import insert
             await conn.execute(

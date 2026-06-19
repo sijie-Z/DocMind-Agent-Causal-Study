@@ -29,8 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from benchmark.scorer import (
     BenchmarkReport,
     QuestionResult,
-    save_case,
     cases_summary,
+    save_case,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,10 +50,12 @@ def _get_langfuse():
 def _get_org_id() -> int:
     """Get the actual default organization ID from the database."""
     try:
-        from app.models.organization import Organization
-        from app.core.database import AsyncSessionLocal
-        from sqlalchemy import select
         import asyncio
+
+        from sqlalchemy import select
+
+        from app.core.database import AsyncSessionLocal
+        from app.models.organization import Organization
         async def _fetch():
             async with AsyncSessionLocal() as db:
                 org = (await db.execute(select(Organization).where(Organization.name == "Default"))).scalar_one_or_none()
@@ -226,7 +228,7 @@ async def _run_agent(question: dict, org_id: int = 3, lf=None, enable_experience
     # ── Save replay data locally (benchmark persistence) ──
     if replay_task_id:
         try:
-            from app.agent.replay.engine import ReplayEngine, REPLAY_DIR
+            from app.agent.replay.engine import REPLAY_DIR, ReplayEngine
             ctx = await ReplayEngine().load(replay_task_id)
             if ctx:
                 path = REPLAY_DIR / f"{replay_task_id}.json"
@@ -244,9 +246,10 @@ async def _run_agent(question: dict, org_id: int = 3, lf=None, enable_experience
 async def _get_org_id() -> int:
     """Get the actual default organization ID from the database."""
     try:
-        from app.models.organization import Organization
-        from app.core.database import AsyncSessionLocal
         from sqlalchemy import select
+
+        from app.core.database import AsyncSessionLocal
+        from app.models.organization import Organization
         async with AsyncSessionLocal() as db:
             org = (await db.execute(select(Organization).where(Organization.name == "Default"))).scalar_one_or_none()
             return org.id if org else 1
@@ -281,7 +284,7 @@ async def run_benchmark(questions_path: str, mode: str, output: str | None = Non
     print(f"\n{'=' * 50}")
     print(f"  评测开始 | 模式: {mode} | 题目数: {len(questions)}")
     if lf:
-        print(f"  Langfuse trace: 已启用")
+        print("  Langfuse trace: 已启用")
     print(f"{'=' * 50}\n")
 
     results: list[QuestionResult] = []

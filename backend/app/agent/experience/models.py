@@ -10,11 +10,10 @@ actionable lesson. Experiences are:
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -95,10 +94,10 @@ class Experience:
     """Arbitrary tags for filtering: ['auto_extracted', 'llm_extracted', 'manual']."""
 
     created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
+        default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
     )
     updated_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
+        default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
     )
 
     # ── Serialization ──
@@ -122,7 +121,7 @@ class Experience:
         else:
             self.fail_count += 1
             self.confidence = max(0.1, self.confidence - 0.2)
-        self.updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        self.updated_at = datetime.now(UTC).isoformat(timespec="seconds")
         logger.info(
             "Experience %s verified=%s confidence=%.2f (vc=%d fc=%d)",
             self.id[:8], success, self.confidence,

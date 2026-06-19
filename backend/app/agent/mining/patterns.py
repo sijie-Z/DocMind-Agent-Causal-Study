@@ -7,9 +7,8 @@ patterns are candidates for automatic Skill generation.
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -179,7 +178,7 @@ class SuggestedSkill:
     """suggested → accepted → registered → active"""
 
     created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
+        default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
     )
 
     def to_dict(self) -> dict[str, Any]:

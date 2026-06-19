@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import os
-import sys
 import socket
 import subprocess
+import sys
+
 
 def is_port_free(port: int, host: str = "0.0.0.0") -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

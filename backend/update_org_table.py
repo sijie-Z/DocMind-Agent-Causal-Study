@@ -1,6 +1,8 @@
 
 import os
+
 import pymysql
+
 
 def update_db():
     connection = pymysql.connect(

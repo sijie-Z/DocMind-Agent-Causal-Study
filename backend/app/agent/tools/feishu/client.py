@@ -32,8 +32,7 @@ FEISHU_ERROR_MAP: dict[int, tuple[str, str]] = {
     99991663: ("token_expired", "飞书 tenant_access_token 已过期"),
     99991400: ("invalid_param", "飞书 API 参数错误，请检查输入"),
     99991661: ("permission_denied", "没有权限访问该多维表格"),
-    99991672: ("rate_limited", "飞书 API 请求过于频繁"),
-    99991672: ("rate_limited", "飞书 API 请求频率超限"),
+    99991672: ("rate_limited", "飞书 API 请求过于频繁"),  # 频率超限
     99991401: ("invalid_param", "请求体格式错误"),
     99991402: ("invalid_param", "app_token 或 table_id 不存在"),
     99991403: ("permission_denied", "无权限操作该资源"),
@@ -134,12 +133,11 @@ class FeishuBitableClient:
             text = (await e.response.aread()).decode("utf-8", errors="replace")[:200]
             if code == 401:
                 raise FeishuAPIError(10001, f"认证失败 (HTTP {code}): {text}")
-            elif code == 429:
+            if code == 429:
                 raise FeishuAPIError(99991672, f"请求频率超限 (HTTP {code})")
-            elif code >= 500:
+            if code >= 500:
                 raise FeishuAPIError(-1, f"飞书服务异常 (HTTP {code}): {text}")
-            else:
-                raise FeishuAPIError(-1, f"HTTP 请求失败 (HTTP {code}): {text}")
+            raise FeishuAPIError(-1, f"HTTP 请求失败 (HTTP {code}): {text}")
 
         body = resp.json()
         feishu_code = body.get("code", -1)

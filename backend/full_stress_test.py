@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import asyncio
-import aiohttp
-import time
 import random
+import time
+
+import aiohttp
 
 BASE_URL = 'http://localhost:8000'
 

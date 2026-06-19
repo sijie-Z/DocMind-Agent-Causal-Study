@@ -1,13 +1,17 @@
 # backend/fix_users.py
 import asyncio
 from typing import cast
+
 from sqlalchemy import select
+
 from app.core.database import AsyncSessionLocal
-from app.models.user import User
 from app.models.organization import Organization
+from app.models.user import User
+
 # Role 虽然导入但未使用，如果不需要可以移除
-# from app.models.rbac import Role 
+# from app.models.rbac import Role
 from app.services.auth_service import AuthService
+
 
 async def fix():
     auth_service = AuthService()
@@ -46,9 +50,9 @@ async def fix():
                 email="guest@example.com",
                 hashed_password=hashed_pwd,
                 full_name="演示访客",
-                role="user",           
-                is_superuser=False,    
-                organization_id=org.id 
+                role="user",
+                is_superuser=False,
+                organization_id=org.id
             )
             db.add(guest)
             print("已创建演示账号：guest / guest123")

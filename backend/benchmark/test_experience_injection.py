@@ -12,7 +12,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -42,7 +41,7 @@ async def main():
         "今天天气怎么样",
     ]
 
-    print(f"\n[2] Search relevance test:")
+    print("\n[2] Search relevance test:")
     for q in test_queries:
         result = await store.format_for_planner(q, top_k=2)
         if result:
@@ -54,7 +53,7 @@ async def main():
             print(f"  ✗ '{q[:25]:25s}' → no relevant experience")
 
     # ── 3. Verify Planner would inject it ──
-    print(f"\n[3] Planner system prompt simulation:")
+    print("\n[3] Planner system prompt simulation:")
     config = AgentConfig(enable_experience=True)
     for q in test_queries[:2]:
         exp_context = await store.format_for_planner(q, top_k=2)

@@ -10,6 +10,7 @@ from sqlalchemy import delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.security import get_current_user
 from app.exceptions import AppError, AuthorizationError, NotFoundError, ValidationError

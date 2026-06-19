@@ -1,7 +1,7 @@
 # backend/sync_now.py
+import asyncio
 import os
 import sys
-import asyncio
 from pathlib import Path
 
 # 1. 强制加载 .env 环境变量
@@ -19,11 +19,13 @@ except ImportError:
 # 2. 将当前路径加入 sys.path 确保能导入 app 和 worker
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from sqlalchemy import select
+
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.document import Document
 from app.worker.doc_processor import processor
-from sqlalchemy import select
-from app.core.config import settings
+
 
 async def run():
     print(f"🔍 检查配置: ES_INDEX={settings.ELASTICSEARCH_INDEX_NAME}")

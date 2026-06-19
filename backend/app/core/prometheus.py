@@ -158,7 +158,7 @@ def get_prometheus_metrics() -> bytes:
     r = _get_real()
     if r is None:
         return b""
-    from prometheus_client import generate_latest, REGISTRY
+    from prometheus_client import REGISTRY, generate_latest
     return generate_latest(REGISTRY)
 
 

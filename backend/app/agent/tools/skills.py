@@ -76,16 +76,6 @@ async def deep_research(
         logger.warning(f"deep_research: search_kb failed: {e}")
 
     # Step 3: 简要总结（detailed 模式额外提示）
-    if depth == "detailed":
-        summary_prompt = (
-            f"请综合以上搜索结果和知识库信息，对「{query}」给出结构化研究摘要，"
-            f"包含：1)关键发现 2)主要观点 3)数据支撑 4)结论与展望"
-        )
-    else:
-        summary_prompt = (
-            f"请综合以上信息，对「{query}」给出简要总结。"
-        )
-
     parts.append(f"\n## 综合摘要\n（依据以上信息综合分析 {query} 的研究结果）")
 
     return "\n\n".join(parts)

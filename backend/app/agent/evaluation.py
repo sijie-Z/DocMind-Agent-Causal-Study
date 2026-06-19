@@ -23,16 +23,12 @@ Usage:
 import json
 import logging
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from app.agent.orchestrator import Orchestrator
 from app.agent.tracing import (
-    ExecutionTrace,
-    StepExecutionRecord,
-    ToolCallRecord,
-    TraceStore,
     get_trace_store,
 )
 
@@ -229,47 +225,47 @@ class EvalReport:
         """One-page text summary for quick review."""
         lines = [
             f"{'='*60}",
-            f"  Agent System Evaluation Report",
+            "  Agent System Evaluation Report",
             f"  {self.timestamp}",
             f"{'='*60}",
             f"  Overall: {self.passed}/{self.total_scenarios} passed ({self.overall_success_rate:.0%})",
             f"  Avg duration: {self.avg_duration_ms:.0f}ms",
             f"  Steps: {self.total_steps_completed}/{self.total_steps_planned} completed",
-            f"",
+            "",
         ]
 
         # Per-category
         if self.by_category:
-            lines.append(f"  ── By Category ──")
+            lines.append("  ── By Category ──")
             for cat, m in sorted(self.by_category.items()):
                 lines.append(f"    {cat}: {m['passed']}/{m['total']} ({m['success_rate']:.0%})")
 
         # Tool metrics
         if self.tool_metrics:
-            lines.append(f"")
-            lines.append(f"  ── Tool Reliability ──")
+            lines.append("")
+            lines.append("  ── Tool Reliability ──")
             for tname, m in sorted(self.tool_metrics.items()):
                 lines.append(f"    {tname}: {m['success_rate']:.0%} success ({m['total_calls']} calls, {m['failed_calls']} failed)")
 
         # Semantic effectiveness
         if self.semantic_effectiveness:
-            lines.append(f"")
-            lines.append(f"  ── Semantic Effectiveness ──")
+            lines.append("")
+            lines.append("  ── Semantic Effectiveness ──")
             se = self.semantic_effectiveness
             lines.append(f"    Retry success rate: {se.get('retry_success_rate', 'N/A')}")
             lines.append(f"    Fallback success rate: {se.get('fallback_success_rate', 'N/A')}")
 
         # Planner accuracy
         if self.planner_accuracy:
-            lines.append(f"")
-            lines.append(f"  ── Planner Accuracy ──")
+            lines.append("")
+            lines.append("  ── Planner Accuracy ──")
             pa = self.planner_accuracy
             lines.append(f"    Tool hint accuracy: {pa.get('hint_accuracy', 'N/A')}")
 
         # Failures
         failed_scenarios = [s for s in self.scenarios if not s.passed]
         if failed_scenarios:
-            lines.append(f"")
+            lines.append("")
             lines.append(f"  ── Failures ({len(failed_scenarios)}) ──")
             for s in failed_scenarios[:5]:
                 fail_reasons = "; ".join(s.failures[:2]) if s.failures else "unknown"
@@ -297,7 +293,6 @@ class EvalReport:
 
     def save(self, path: str = "eval_report.json") -> str:
         """Save report to JSON file."""
-        import json
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, ensure_ascii=False, indent=2)
         logger.info("Evaluation report saved to %s", path)
@@ -493,9 +488,10 @@ async def _run_single_scenario(
 
     try:
         if orchestrator is None:
+            from openai import AsyncOpenAI
+
             from app.agent.config import AgentConfig
             from app.agent.planner import Planner
-            from openai import AsyncOpenAI
 
             # Minimal config for evaluation
             config = AgentConfig(

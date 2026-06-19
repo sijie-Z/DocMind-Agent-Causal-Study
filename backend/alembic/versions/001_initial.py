@@ -1,9 +1,9 @@
 """
 数据库迁移脚本 - 创建所有表
 """
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import mysql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '001_initial'

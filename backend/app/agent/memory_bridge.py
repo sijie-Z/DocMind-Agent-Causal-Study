@@ -81,7 +81,6 @@ class AgentMemoryBridge:
         Returns a formatted string like:
             "## 相关记忆\n1. 上次分析财报时发现毛利率下降...\n2. 用户偏好详细的中文回答..."
         """
-        lf = None
         span = None
         try:
             from app.agent.observability import get_langfuse

@@ -38,7 +38,7 @@ import json
 import logging
 import time
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 

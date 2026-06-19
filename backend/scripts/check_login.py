@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 本地诊断：不启动 FastAPI，直接测登录相关逻辑，用于排查 500。
 在 1_demo/backend 目录下运行: python scripts/check_login.py
 """
 import asyncio
-import sys
 import os
+import sys
 
 # 确保 backend 在 path 中
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -15,8 +14,9 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 async def main():
     print("1. 检查数据库连接...")
     try:
-        from app.core.database import AsyncSessionLocal
         from sqlalchemy import text
+
+        from app.core.database import AsyncSessionLocal
         async with AsyncSessionLocal() as db:
             await db.execute(text("SELECT 1"))
         print("   数据库连接 OK")

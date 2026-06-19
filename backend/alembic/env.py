@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
 """Alembic environment configuration for DocMind."""
 import asyncio
 from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
-from alembic import context
-
-from app.core.config import settings
-from app.core.database import Base
 
 # Import all models so Base.metadata is populated
 import app.models  # noqa: F401
+from alembic import context
+from app.core.config import settings
+from app.core.database import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

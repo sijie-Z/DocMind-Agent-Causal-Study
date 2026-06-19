@@ -1,6 +1,8 @@
 import asyncio
-from app.core.elasticsearch import get_elasticsearch
+
 from app.core.config import settings
+from app.core.elasticsearch import get_elasticsearch
+
 
 async def check_index():
     print(f"Connecting to Elasticsearch at {settings.ELASTICSEARCH_HOSTS}...")

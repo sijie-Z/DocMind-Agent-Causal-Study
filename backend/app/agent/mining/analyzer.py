@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 from app.agent.mining.miner import PatternMiner
 from app.agent.mining.patterns import PatternStats, SuggestedSkill

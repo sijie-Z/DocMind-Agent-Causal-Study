@@ -1,9 +1,9 @@
 """
 Add prompt_template_versions and token_usage tables
 """
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import mysql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '003_add_prompt_versions_token_usage'

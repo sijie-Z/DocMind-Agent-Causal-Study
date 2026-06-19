@@ -17,9 +17,7 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from app.agent.mining.patterns import PatternStats, ToolSequence
 
@@ -180,7 +178,6 @@ class PatternMiner:
     @staticmethod
     def _extract_triggers(queries: list[str]) -> list[str]:
         """Extract common keywords from successful queries as trigger patterns."""
-        import re
         keyword_freq: dict[str, int] = defaultdict(int)
 
         for query in queries:

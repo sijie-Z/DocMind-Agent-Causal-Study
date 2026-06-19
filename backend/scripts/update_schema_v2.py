@@ -1,13 +1,14 @@
-import sys
 import os
+import sys
 
 # 添加项目根目录到 Python 路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text
+
 from app.core.database import sync_engine
-from app.models.user import User
 from app.models.manual import SystemManual
+
 
 def update_schema():
     print("开始更新数据库结构...")

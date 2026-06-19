@@ -27,7 +27,7 @@ from pathlib import Path
 # Ensure backend is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.agent.replay.engine import ReplayEngine, REPLAY_DIR
+from app.agent.replay.engine import REPLAY_DIR, ReplayEngine
 
 REPLAY_DIR.mkdir(parents=True, exist_ok=True)
 

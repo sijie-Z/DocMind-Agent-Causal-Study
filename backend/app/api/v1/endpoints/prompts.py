@@ -1,7 +1,7 @@
 """API endpoints for prompt template management with version history."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,6 @@ from app.models.user import User
 from app.schemas.prompt import (
     PromptTemplateCreate,
     PromptTemplateResponse,
-    PromptTemplateUpdate,
     PromptTemplateUpdateWithNote,
     PromptTemplateVersionResponse,
 )
@@ -114,7 +113,7 @@ async def update_prompt(
         setattr(db_prompt, field, value)
 
     db_prompt.version += 1
-    db_prompt.updated_at = datetime.now(timezone.utc)
+    db_prompt.updated_at = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(db_prompt)
@@ -182,7 +181,7 @@ async def restore_prompt_version(
     db_prompt.content = ver.content
     db_prompt.description = ver.description
     db_prompt.version += 1
-    db_prompt.updated_at = datetime.now(timezone.utc)
+    db_prompt.updated_at = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(db_prompt)

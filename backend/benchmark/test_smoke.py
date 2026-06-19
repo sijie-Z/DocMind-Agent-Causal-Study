@@ -14,7 +14,6 @@ Usage:
 """
 
 import json
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -22,11 +21,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from benchmark.scorer import (
-    QuestionResult,
     BenchmarkReport,
-    save_case,
+    QuestionResult,
     cases_summary,
     load_all_cases,
+    save_case,
 )
 
 

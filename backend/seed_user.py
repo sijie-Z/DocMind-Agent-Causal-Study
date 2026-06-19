@@ -1,18 +1,17 @@
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add backend to sys.path
 sys.path.append(os.getcwd())
 
 from sqlalchemy import select
+
 from app.core.database import AsyncSessionLocal
-from app.services.auth_service import AuthService
-from app.models.user import User
 from app.models.organization import Organization
-from app.models.document import Document
-from app.models.chat import ChatSession
+from app.services.auth_service import AuthService
+
 
 async def seed():
     async with AsyncSessionLocal() as db:

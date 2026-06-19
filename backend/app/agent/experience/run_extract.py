@@ -52,7 +52,7 @@ async def main():
         print(f"  [{exp.confidence:.0%}] {exp.scenario:25s} | {exp.lesson[:70]}...")
 
     # ── Step 3: Verify persistence ──
-    print(f"\n[3/3] Persistence check:")
+    print("\n[3/3] Persistence check:")
     local_path = Path("benchmark/experiences.json")
     if local_path.exists():
         data = local_path.read_text(encoding="utf-8")

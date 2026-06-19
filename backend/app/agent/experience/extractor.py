@@ -24,7 +24,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 from app.agent.experience.models import Experience
 from app.agent.experience.store import get_experience_store
@@ -363,8 +362,7 @@ def _compute_applicability(scenario: str, symptom: str) -> tuple[list[str], list
     Falls back to _DEFAULT_META if no specific rule exists.
     """
     scenario_rules = _APPLICABILITY_RULES.get(scenario, {})
-    rule = scenario_rules.get(symptom, _DEFAULT_META)
-    return rule
+    return scenario_rules.get(symptom, _DEFAULT_META)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -383,7 +381,6 @@ async def extract_from_benchmark_failure(case: dict) -> Experience | None:
         failure (grade == 'failure' or coverage < 0.4).
         None for partial successes or insufficient data.
     """
-    grade = case.get("grade", "")
     coverage = case.get("keyword_coverage", 1.0)
 
     # Only skip true successes (coverage >= 0.8)

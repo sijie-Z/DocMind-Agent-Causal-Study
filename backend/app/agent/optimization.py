@@ -29,7 +29,7 @@ Usage:
 """
 
 import logging
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -108,7 +108,7 @@ class OptimizationReport:
     def summary(self) -> str:
         lines = [
             f"{'='*60}",
-            f"  System Optimization Report",
+            "  System Optimization Report",
             f"  {self.timestamp}",
             f"{'='*60}",
             f"  Traces analyzed: {self.total_traces_analyzed}",
@@ -117,7 +117,7 @@ class OptimizationReport:
             f"  Planner hint accuracy: {self.planner_hint_accuracy:.1%}",
             f"  Retry success rate: {self.retry_success_rate:.1%}",
             f"  Fallback success rate: {self.fallback_success_rate:.1%}",
-            f"",
+            "",
         ]
         if self.suggestions:
             lines.append(f"  Optimization Suggestions ({len(self.suggestions)}):")
@@ -125,7 +125,7 @@ class OptimizationReport:
                 lines.append(f"    [{s.impact.upper():8s}] {s.title}")
                 lines.append(f"           {s.action}")
         else:
-            lines.append(f"  No optimization suggestions — system performing well.")
+            lines.append("  No optimization suggestions — system performing well.")
 
         lines.append(f"{'='*60}")
         return "\n".join(lines)
@@ -180,7 +180,7 @@ class DiffResult:
     def summary(self) -> str:
         lines = [
             f"{'='*60}",
-            f"  Before/After Comparison",
+            "  Before/After Comparison",
             f"{'='*60}",
             f"  Success rate: {self.before.success_rate:.1%} → {self.after.success_rate:.1%} ({self.success_rate_change:+.1%})",
             f"  Avg latency: {self.before.avg_latency_ms:.0f}ms → {self.after.avg_latency_ms:.0f}ms ({self.latency_change_ms:+.0f}ms)",
@@ -356,10 +356,7 @@ class OptimizationController:
     def _is_auth_error(self, error_codes: dict) -> bool:
         """Check if most errors are auth-related."""
         auth_codes = {"token_expired", "auth_config_error", "auth_error", "permission_denied"}
-        for code in error_codes:
-            if code in auth_codes:
-                return True
-        return False
+        return any(code in auth_codes for code in error_codes)
 
     def _suggest_tool_fix(self, tname: str, top_errors: dict, rate: float) -> str:
         if self._is_auth_error(top_errors):

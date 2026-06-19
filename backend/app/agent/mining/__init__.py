@@ -17,9 +17,9 @@ Usage:
     python -m app.agent.mining.analyzer --save
 """
 
-from app.agent.mining.patterns import ToolSequence, PatternStats, SuggestedSkill
-from app.agent.mining.miner import PatternMiner
 from app.agent.mining.analyzer import PatternAnalyzer
+from app.agent.mining.miner import PatternMiner
+from app.agent.mining.patterns import PatternStats, SuggestedSkill, ToolSequence
 
 __all__ = [
     "ToolSequence",

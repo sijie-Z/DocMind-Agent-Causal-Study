@@ -24,10 +24,9 @@ Usage:
 
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1.  Data Models

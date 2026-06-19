@@ -8,7 +8,6 @@ Usage:
     mcp_call(server="filesystem", tool="read_file", args={"path": "/tmp/test.txt"})
 """
 
-import json
 import logging
 import os
 from typing import Any

@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-
 # ─── Supported message types ────────────────────────────────────────────────
 # plan_request   — Orchestrator → Planner: "plan this query"
 # plan           — Planner → Orchestrator: "here's the plan"

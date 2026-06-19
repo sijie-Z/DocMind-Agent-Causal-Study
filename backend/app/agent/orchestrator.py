@@ -27,7 +27,7 @@ from app.agent.config import AgentConfig
 from app.agent.events import AgentEvent
 from app.agent.exec_context import ExecutionContext
 from app.agent.message import AgentMessage, message_bus
-from app.agent.planner import Planner, Plan, PlanStep
+from app.agent.planner import Plan, Planner, PlanStep
 from app.agent.tracing import ExecutionTrace, get_trace_store
 
 logger = logging.getLogger(__name__)

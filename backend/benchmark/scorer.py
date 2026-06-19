@@ -16,12 +16,10 @@ Case classification:
 from __future__ import annotations
 
 import json
-import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
 
 # ── Classification ────────────────────────────────────────────────────
 
@@ -63,10 +61,9 @@ class CaseGrade:
     def from_score(cls, score: float) -> str:
         if score >= 0.8:
             return cls.SUCCESS
-        elif score >= 0.4:
+        if score >= 0.4:
             return cls.PARTIAL
-        else:
-            return cls.FAILURE
+        return cls.FAILURE
 
 
 # ── Single question result ────────────────────────────────────────────
@@ -153,7 +150,7 @@ class CaseFile:
         cls,
         result: QuestionResult,
         expected_keywords: list[str],
-    ) -> "CaseFile":
+    ) -> CaseFile:
         cause = FailureCause.classify(result.answer, result.tool_failures, result.step_count)
         return cls(
             question_id=result.id,
@@ -252,7 +249,7 @@ class BenchmarkReport:
     failure_causes: dict[str, int] = field(default_factory=dict)
 
     @classmethod
-    def from_results(cls, mode: str, results: list[QuestionResult]) -> "BenchmarkReport":
+    def from_results(cls, mode: str, results: list[QuestionResult]) -> BenchmarkReport:
         n = len(results) or 1
         # Aggregate failure causes
         fc: dict[str, int] = {}
@@ -289,8 +286,8 @@ class BenchmarkReport:
             f"平均步骤数:        {self.avg_step_count:.1f}",
             f"平均工具失败数:    {self.avg_tool_failures:.1f}",
             f"总 Token 消耗:     {self.total_tokens}",
-            f"",
-            f"分类分布:",
+            "",
+            "分类分布:",
             f"  ✅ success: {self.grade_success}",
             f"  🟡 partial: {self.grade_partial}",
             f"  ❌ failure: {self.grade_failure}",
@@ -302,7 +299,7 @@ class BenchmarkReport:
                 lines.append(f"  {cause:<25s} {count}")
         return "\n".join(lines)
 
-    def comparison_text(self, other: "BenchmarkReport") -> str:
+    def comparison_text(self, other: BenchmarkReport) -> str:
         """Compare this report against another (e.g. agent vs baseline)."""
         lines = [
             f"{'指标':<20} {'Baseline':<14} {'Agent':<14} {'变化':<10}",

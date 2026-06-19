@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """Seed knowledge base with sample documents, directly inserting pre-parsed content."""
 import asyncio
-import uuid
 import os
 import sys
+import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Must be before any other imports
 os.environ["DOCMIND_DATABASE_URL"] = "sqlite+aiosqlite:///./docmind_dev.db"
 
+from datetime import UTC, datetime
+
+from sqlalchemy import select
+
 from app.core.database import AsyncSessionLocal, init_db
+from app.core.elasticsearch import es_client
 from app.models.document import Document, DocumentChunk, DocumentStatus, DocumentType
 from app.models.organization import Organization
 from app.models.user import User
-from app.core.elasticsearch import es_client
-from sqlalchemy import select
-from datetime import datetime, timezone
 
 SEED_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -74,7 +76,7 @@ async def seed():
                 continue
 
             doc_id = str(uuid.uuid4())
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             full_text = "\n\n".join(c[1] for c in doc_info["chunks"])
             content_length = len(full_text)
             chunk_count = len(doc_info["chunks"])
