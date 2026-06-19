@@ -58,10 +58,12 @@ class ExecutorAgent:
         config: AgentConfig | None = None,
         organization_id: int = 1,
         user_id: int = 0,
+        execution_mode: str = "dag",
     ):
         self._config = config or AgentConfig()
         self._organization_id = organization_id
         self._user_id = user_id
+        self._execution_mode = execution_mode  # "dag" or "serial"
         self._seen_fingerprints: set[int] = set()
         self._consecutive_low_gain: int = 0
 
@@ -118,88 +120,108 @@ class ExecutorAgent:
                 fallback_tool=s.get("fallback_tool"),
             ))
 
-        # Execute steps in dependency order
+        # Execute steps
         completed: dict[str, str] = {}  # step_id → result summary
         step_results: list[dict[str, Any]] = []
         total = len(steps)
         done = 0
-        done = 0
 
-        while done < total:
-            # Find ready steps (all dependencies satisfied)
-            ready = []
+        if self._execution_mode == "serial":
+            # ── SERIAL MODE: ignore dependencies, execute in definition order ──
+            # This simulates a ReAct-like execution path for benchmark comparison.
             for step in steps:
-                if step.status != "pending":
-                    continue
-                if all(dep in completed for dep in step.dependencies):
-                    ready.append(step)
+                step.status = "running"
+                result = await self._execute_one_step(step, ctx)
+                for event in self._emit_step_events(step, result):
+                    yield event
+                completed[step.id] = str(result.data)[:200] if result.success else ""
+                step_results.append({
+                    "step_id": step.id,
+                    "description": step.description,
+                    "status": "completed" if result.success else "failed",
+                    "result": str(result.data)[:2000] if result.success else None,
+                    "error": result.error.to_dict() if result.error else None,
+                    "latency_ms": result.meta.latency_ms,
+                    "tool_hint": step.tool_hint,
+                })
+                if result.success:
+                    done += 1
+        else:
+            # ── DAG MODE: dependency-aware, parallel group execution ──
+            while done < total:
+                # Find ready steps (all dependencies satisfied)
+                ready = []
+                for step in steps:
+                    if step.status != "pending":
+                        continue
+                    if all(dep in completed for dep in step.dependencies):
+                        ready.append(step)
 
-            if not ready:
-                # Deadlock or all remaining are stuck
-                remaining = [s for s in steps if s.status == "pending"]
-                for s in remaining:
-                    s.status = "skipped"
-                    step_results.append({
-                        "step_id": s.id,
-                        "description": s.description,
-                        "status": "skipped",
-                        "result": None,
-                        "error": "依赖条件无法满足（死锁）",
-                        "tool_hint": s.tool_hint,
-                    })
-                break
-
-            # Group by parallel_group for concurrent execution
-            groups: dict[int | None, list[PlanStep]] = {}
-            for step in ready:
-                g = step.parallel_group
-                if g not in groups:
-                    groups[g] = []
-                groups[g].append(step)
-
-            # Execute each group (sequential between groups, parallel within)
-            for group_id, group_steps in groups.items():
-                if len(group_steps) > 1 and group_id is not None:
-                    # Parallel execution
-                    tasks = [
-                        self._execute_one_step(s, ctx)
-                        for s in group_steps
-                    ]
-                    results = await asyncio.gather(*tasks)
-                    for step, result in zip(group_steps, results, strict=False):
-                        for event in self._emit_step_events(step, result):
-                            yield event
-                        completed[step.id] = str(result.data)[:200] if result.success else ""
+                if not ready:
+                    # Deadlock or all remaining are stuck
+                    remaining = [s for s in steps if s.status == "pending"]
+                    for s in remaining:
+                        s.status = "skipped"
                         step_results.append({
-                            "step_id": step.id,
-                            "description": step.description,
-                            "status": "completed" if result.success else "failed",
-                            "result": str(result.data)[:2000] if result.success else None,
-                            "error": result.error.to_dict() if result.error else None,
-                            "latency_ms": result.meta.latency_ms,
-                        "tool_hint": step.tool_hint,
+                            "step_id": s.id,
+                            "description": s.description,
+                            "status": "skipped",
+                            "result": None,
+                            "error": "依赖条件无法满足（死锁）",
+                            "tool_hint": s.tool_hint,
                         })
-                        if result.success:
-                            done += 1
+                    break
 
-                else:
-                    # Sequential execution
-                    for step in group_steps:
-                        result = await self._execute_one_step(step, ctx)
-                        for event in self._emit_step_events(step, result):
-                            yield event
-                        completed[step.id] = str(result.data)[:200] if result.success else ""
-                        step_results.append({
-                            "step_id": step.id,
-                            "description": step.description,
-                            "status": "completed" if result.success else "failed",
-                            "result": str(result.data)[:2000] if result.success else None,
-                            "error": result.error.to_dict() if result.error else None,
-                            "latency_ms": result.meta.latency_ms,
-                        "tool_hint": step.tool_hint,
-                        })
-                        if result.success:
-                            done += 1
+                # Group by parallel_group for concurrent execution
+                groups: dict[int | None, list[PlanStep]] = {}
+                for step in ready:
+                    g = step.parallel_group
+                    if g not in groups:
+                        groups[g] = []
+                    groups[g].append(step)
+
+                # Execute each group (sequential between groups, parallel within)
+                for group_id, group_steps in groups.items():
+                    if len(group_steps) > 1 and group_id is not None:
+                        # Parallel execution
+                        tasks = [
+                            self._execute_one_step(s, ctx)
+                            for s in group_steps
+                        ]
+                        results = await asyncio.gather(*tasks)
+                        for step, result in zip(group_steps, results, strict=False):
+                            for event in self._emit_step_events(step, result):
+                                yield event
+                            completed[step.id] = str(result.data)[:200] if result.success else ""
+                            step_results.append({
+                                "step_id": step.id,
+                                "description": step.description,
+                                "status": "completed" if result.success else "failed",
+                                "result": str(result.data)[:2000] if result.success else None,
+                                "error": result.error.to_dict() if result.error else None,
+                                "latency_ms": result.meta.latency_ms,
+                                "tool_hint": step.tool_hint,
+                            })
+                            if result.success:
+                                done += 1
+                    else:
+                        # Sequential execution
+                        for step in group_steps:
+                            result = await self._execute_one_step(step, ctx)
+                            for event in self._emit_step_events(step, result):
+                                yield event
+                            completed[step.id] = str(result.data)[:200] if result.success else ""
+                            step_results.append({
+                                "step_id": step.id,
+                                "description": step.description,
+                                "status": "completed" if result.success else "failed",
+                                "result": str(result.data)[:2000] if result.success else None,
+                                "error": result.error.to_dict() if result.error else None,
+                                "latency_ms": result.meta.latency_ms,
+                                "tool_hint": step.tool_hint,
+                            })
+                            if result.success:
+                                done += 1
 
         # Yield step results back to Orchestrator (JSON-serialized)
         for sr in step_results:

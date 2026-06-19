@@ -24,6 +24,23 @@ from app.core.prometheus import AGENT_REFLECTION_DECISIONS
 
 logger = logging.getLogger(__name__)
 
+# ── Reflection statistics (module-level counters for benchmark) ──
+_reflection_stats = {
+    "quick_pass_count": 0,
+    "llm_reflection_count": 0,
+}
+
+
+def get_reflection_stats() -> dict:
+    """Return current reflection statistics for benchmark analysis."""
+    return dict(_reflection_stats)
+
+
+def reset_reflection_stats() -> None:
+    """Reset reflection statistics (e.g. between benchmark runs)."""
+    _reflection_stats["quick_pass_count"] = 0
+    _reflection_stats["llm_reflection_count"] = 0
+
 REFLECTION_SYSTEM_PROMPT = """你是一个质量评估专家。你需要评估 Agent 的任务执行结果。
 
 ## 原始目标
@@ -112,6 +129,7 @@ class Reflector:
 
         # Quick check: if all steps succeeded and had meaningful output, fast-pass
         if self._quick_pass_check(plan, results):
+            _reflection_stats["quick_pass_count"] += 1
             if span:
                 span.end(output="quick_pass")
             yield AgentEvent(
@@ -136,6 +154,7 @@ class Reflector:
         )
 
         try:
+            _reflection_stats["llm_reflection_count"] += 1
             response = await self.client.chat.completions.create(
                 model=self.config.get_deep_model(),
                 messages=[
