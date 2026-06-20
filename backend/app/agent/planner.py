@@ -188,6 +188,26 @@ class Planner:
         AGENT_PLANNING_TOTAL.inc()
         planning_start = time.time()
 
+        # ── Structured planning: rule-based task decomposition ──
+        # Experiments 001-003 proved the LLM-based Planner will not decompose
+        # tasks (avg_steps ≈ 1).  When structured planning is enabled, the
+        # system classifies the query and builds a template plan directly.
+        structured_plan = self._try_structured_planning(plan_id, query)
+        if structured_plan:
+            self._validate_dag(structured_plan)
+            yield AgentEvent(type="plan_start", plan_id=plan_id, content="分析任务类型，制定执行计划...")
+            for step in structured_plan.steps:
+                yield AgentEvent(type="plan_step", plan_id=plan_id, plan_step_id=step.id,
+                                 content=step.description, dependencies=step.dependencies,
+                                 tool_hint=step.tool_hint or "", plan_progress=0.0)
+                await asyncio.sleep(0.005)
+            yield AgentEvent(type="plan_complete", plan_id=plan_id,
+                             content=f"计划已生成: {structured_plan.total_steps} 个步骤", plan_progress=0.0)
+            if ctx:
+                ctx.record_decision("plan", "structured", f"Generated {len(structured_plan.steps)} steps")
+            AGENT_PLANNING_LATENCY.observe(time.time() - planning_start)
+            return
+
         # Determine planning granularity
         mode = getattr(self.config, "planning_mode", "normal")
         if mode == "coarse":
@@ -356,6 +376,96 @@ class Planner:
                 plan_progress=0.0,
             )
             return
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Structured planning — rule-based task decomposition
+    # ═══════════════════════════════════════════════════════════════════
+    # Experiments 001-003 proved the LLM-based Planner will not decompose
+    # tasks (avg_steps ≈ 1).  When structured planning is enabled, the
+    # system classifies the query and builds a template plan directly.
+
+    _COMPARISON_KEYWORDS = ["对比", "比较", "compare", "vs", "versus", "差异", "区别",
+                            "分别", "哪个", "不同之处"]
+    _FRAMEWORK_KEYWORDS = ["SWOT", "PEST", "杜邦", "框架"]
+    _RESEARCH_KEYWORDS = ["总结", "综述", "概述", "概括", "归纳", "研究", "调研"]
+    _REPORT_KEYWORDS = ["报告", "报表", "趋势", "变化", "增长"]
+
+    def _classify_task_type(self, query: str) -> str | None:
+        """Classify query into known task types for template-based planning."""
+        q = query.lower().strip()
+        if any(kw in q for kw in self._COMPARISON_KEYWORDS):
+            if any(kw in q for kw in ["和", "与", "vs", "versus", "、"]):
+                return "comparison"
+        if any(kw in q for kw in self._FRAMEWORK_KEYWORDS):
+            return "analysis"
+        if any(kw in q for kw in self._RESEARCH_KEYWORDS):
+            return "research"
+        if any(kw in q for kw in self._REPORT_KEYWORDS):
+            if any(kw in q for kw in ["搜索", "找", "查", "search", "find"]):
+                return "research"
+        return None
+
+    def _try_structured_planning(self, plan_id: str, query: str) -> Plan | None:
+        """Attempt rule-based plan generation for known task types."""
+        task_type = self._classify_task_type(query)
+        if task_type == "comparison":
+            return self._build_comparison_plan(plan_id, query)
+        if task_type == "analysis":
+            return self._build_analysis_plan(plan_id, query)
+        if task_type == "research":
+            return self._build_research_plan(plan_id, query)
+        return None
+
+    def _build_comparison_plan(self, plan_id: str, query: str) -> Plan:
+        """Template: search entities in parallel → compare/synthesize."""
+        import re as _re
+        parts = _re.split(r'\s*(?:和|与|、|vs\.?|versus)\s*', query)
+        entities = [p.strip() for p in parts
+                    if p.strip() and not any(kw in p.lower()
+                                              for kw in self._COMPARISON_KEYWORDS
+                                              + ["搜索", "找", "查", "search", "find", "分析"])]
+        entities = entities[:5]
+        if len(entities) < 2:
+            entities = ["相关内容"]
+        steps: list[PlanStep] = []
+        for i, entity in enumerate(entities, 1):
+            steps.append(PlanStep(
+                id=f"s{i}", description=f"搜索「{entity}」相关信息",
+                dependencies=[], tool_hint="search_knowledge_base", parallel_group=1))
+        all_ids = [s.id for s in steps]
+        steps.append(PlanStep(
+            id=f"s{len(entities)+1}", description=f"综合分析: {query[:60]}",
+            dependencies=all_ids, tool_hint="extract_insights"))
+        return Plan(
+            id=plan_id, goal=query[:80],
+            reasoning=f"自动识别为对比任务，{len(entities)} 个并行搜索 → 综合对比",
+            steps=steps)
+
+    def _build_analysis_plan(self, plan_id: str, query: str) -> Plan:
+        """Template: search → extract → report."""
+        steps = [
+            PlanStep(id="s1", description=f"搜索相关信息: {query[:60]}",
+                     tool_hint="search_knowledge_base", parallel_group=1),
+            PlanStep(id="s2", description=f"提取关键信息: {query[:60]}",
+                     dependencies=["s1"], tool_hint="extract_insights"),
+            PlanStep(id="s3", description=f"生成分析报告: {query[:60]}",
+                     dependencies=["s2"], tool_hint="generate_report"),
+        ]
+        return Plan(id=plan_id, goal=query[:80],
+                    reasoning="识别为分析类任务: 搜索 → 提取 → 报告", steps=steps)
+
+    def _build_research_plan(self, plan_id: str, query: str) -> Plan:
+        """Template: search → extract → summarize."""
+        steps = [
+            PlanStep(id="s1", description=f"搜索相关资料: {query[:60]}",
+                     tool_hint="search_knowledge_base", parallel_group=1),
+            PlanStep(id="s2", description=f"提取关键数据: {query[:60]}",
+                     dependencies=["s1"], tool_hint="extract_insights"),
+            PlanStep(id="s3", description=f"归纳总结: {query[:60]}",
+                     dependencies=["s2"], tool_hint="summarize_document"),
+        ]
+        return Plan(id=plan_id, goal=query[:80],
+                    reasoning="识别为研究类任务: 搜索 → 提取 → 总结", steps=steps)
 
     def _build_tools_description(self) -> str:
         """Build a semantic-aware tool list for the planning prompt.
