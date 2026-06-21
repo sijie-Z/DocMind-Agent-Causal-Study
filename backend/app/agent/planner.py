@@ -604,7 +604,7 @@ class Planner:
 
         return Plan(
             id=plan_id, goal=query[:80],
-            reasoning=f"研究任务: 搜集 → 提取 → 归纳",
+            reasoning="研究任务: 搜集 → 提取 → 归纳",
             steps=steps)
 
     def _build_tools_description(self) -> str:
