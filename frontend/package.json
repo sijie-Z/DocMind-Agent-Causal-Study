@@ -24,7 +24,7 @@
     "axios": "^1.6.2",
     "dayjs": "^1.11.10",
     "dompurify": "^3.3.1",
-    "echarts": "^5.6.0",
+    "echarts": "^6.1.0",
     "highlight.js": "^11.11.1",
     "js-cookie": "^3.0.5",
     "katex": "^0.16.28",
