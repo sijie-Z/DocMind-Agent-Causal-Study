@@ -13,6 +13,7 @@ Usage:
       -d '{"query": "对比星辰科技和远方创新的财务表现", "mode": "structured"}'
 """
 import os, sys, json, asyncio, time, uuid, logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ── Bootstrap ────────────────────────────────────────────────
@@ -40,6 +41,41 @@ AGENT_TIMEOUT = 90.0
 
 # Trace persistence
 _trace_exporter = TraceExporter(output_dir="traces")
+
+# ── Structured request log ───────────────────────────────────
+_request_log_path = Path("logs/agent_requests.jsonl")
+_request_log_path.parent.mkdir(parents=True, exist_ok=True)
+
+def _log_request(
+    request_id: str,
+    endpoint: str,
+    query: str,
+    latency: float,
+    status: str,
+    errors: list | None = None,
+    coverage: float = 0.0,
+    steps: int = 0,
+    tool_calls: int = 0,
+):
+    """Append a structured request record to the JSONL log."""
+    record = {
+        "request_id": request_id,
+        "endpoint": endpoint,
+        "query": query[:80],
+        "latency_seconds": round(latency, 2),
+        "status": status,
+        "error_count": len(errors or []),
+        "error_types": list({e.get("type", "unknown") for e in (errors or [])}),
+        "coverage": round(coverage, 3),
+        "steps": steps,
+        "tool_calls": tool_calls,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        with open(_request_log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 # ── Pydantic schemas ─────────────────────────────────────────
 
@@ -269,7 +305,89 @@ async def health():
     return {"status": "ok", "service": "docmind-agent"}
 
 
-@app.post("/chat", response_model=TraceResponse)
+@app.post("/eval")
+async def eval_benchmark(mode: str = "structured", layer: str = "l1"):
+    """Run benchmark evaluation, return aggregated metrics.
+
+    Args:
+        mode: "structured" or "coarse"
+        layer: "l1" (L1 capability, 20 questions) or "all" (30 questions)
+    """
+    # Load questions
+    v3_path = Path(__file__).resolve().parent.parent / "benchmark" / "questions" / "v3.json"
+    if not v3_path.exists():
+        raise HTTPException(status_code=404, detail="Benchmark questions not found")
+    v3 = json.loads(v3_path.read_text(encoding="utf-8"))
+    all_questions = v3["questions"]
+    if layer == "l1":
+        questions = [q for q in all_questions if q["id"].startswith("L1-")]
+    else:
+        questions = all_questions
+
+    eval_id = uuid.uuid4().hex[:8]
+    results: list[dict] = []
+    start = time.perf_counter()
+
+    for i, q in enumerate(questions):
+        try:
+            r = await run_agent(
+                query=q["question"],
+                mode=mode,
+                expected_keywords=q.get("expected_keywords", []),
+            )
+            results.append({
+                "id": q["id"],
+                "coverage": r["coverage"],
+                "latency": r["latency_seconds"],
+                "steps": r["steps"],
+                "errors": len(r["errors"]),
+                "error_types": [e.get("type", "") for e in r["errors"]],
+            })
+        except Exception as e:
+            results.append({
+                "id": q["id"], "coverage": 0.0,
+                "latency": 0, "steps": 0,
+                "errors": 1, "error_types": [str(e)[:80]],
+            })
+
+    duration = time.perf_counter() - start
+    coverages = [r["coverage"] for r in results]
+    total_latencies = [r["latency"] for r in results]
+    sorted_cov = sorted(coverages)
+    sorted_lat = sorted(total_latencies)
+
+    report = {
+        "eval_id": eval_id,
+        "mode": mode,
+        "layer": layer,
+        "questions": len(questions),
+        "duration_seconds": round(duration, 1),
+        "avg_coverage": round(sum(coverages) / len(coverages), 3),
+        "coverage_p50": round(sorted_cov[len(sorted_cov) // 2], 3),
+        "coverage_p95": round(sorted_cov[int(len(sorted_cov) * 0.95) - 1], 3),
+        "avg_latency": round(sum(total_latencies) / len(total_latencies), 1),
+        "latency_p50": round(sorted_lat[len(sorted_lat) // 2], 1),
+        "latency_p95": round(sorted_lat[int(len(sorted_lat) * 0.95) - 1], 1),
+        "pass_count": sum(1 for c in coverages if c >= 0.8),
+        "partial_count": sum(1 for c in coverages if 0.4 <= c < 0.8),
+        "fail_count": sum(1 for c in coverages if c < 0.4),
+        "error_distribution": {},
+        "per_question": results,
+    }
+    # Count error types
+    for r in results:
+        for et in r["error_types"]:
+            report["error_distribution"][et] = report["error_distribution"].get(et, 0) + 1
+
+    _log_request(
+        request_id=eval_id, endpoint="/eval",
+        query=f"benchmark:{layer}/{mode}", latency=duration,
+        status="ok", coverage=report["avg_coverage"],
+    )
+    return report
+
+
+@app.post("/chat")
 async def chat(req: AgentRequest):
     """Run agent, return answer + metrics (no full trace)."""
     result = await run_agent(
@@ -277,13 +395,37 @@ async def chat(req: AgentRequest):
         mode=req.mode,
         expected_keywords=req.expected_keywords,
     )
+    _log_request(
+        request_id=result["request_id"], endpoint="/chat",
+        query=req.query, latency=result["latency_seconds"],
+        status="ok" if not result["errors"] else "partial",
+        errors=result["errors"], coverage=result.get("coverage", 0),
+        steps=result.get("steps", 0), tool_calls=result.get("tool_calls", 0),
+    )
     # Strip execution details for /chat (keep summary)
     result.pop("execution", None)
-    # Truncate plan detail
     result["plan"] = [
         {"id": s["id"], "description": s["description"]}
         for s in result["plan"]
     ]
+    return result
+
+
+@app.post("/trace")
+async def trace(req: AgentRequest):
+    """Run agent, return full execution trace."""
+    result = await run_agent(
+        query=req.query,
+        mode=req.mode,
+        expected_keywords=req.expected_keywords,
+    )
+    _log_request(
+        request_id=result["request_id"], endpoint="/trace",
+        query=req.query, latency=result["latency_seconds"],
+        status="ok" if not result["errors"] else "partial",
+        errors=result["errors"], coverage=result.get("coverage", 0),
+        steps=result.get("steps", 0), tool_calls=result.get("tool_calls", 0),
+    )
     return result
 
 
