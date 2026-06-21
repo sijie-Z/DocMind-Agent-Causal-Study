@@ -30,5 +30,8 @@ backend/benchmark/run_007*.py
 # Demo temp files
 backend/demo_scratch/
 
+# Trace exports
+traces/
+
 # Logs
 backend/logs/

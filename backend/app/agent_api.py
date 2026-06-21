@@ -31,11 +31,15 @@ from app.agent.config import AgentConfig
 from app.agent.loop import PERAgentLoop
 from app.agent.planner import Plan, PlanStep
 from app.core.step_runner import StepRunner, safe_run, StepResult, StepError
+from app.core.trace_logger import AgentTracer, TraceExporter
 
 import app.agent.service  # noqa: F401 — register tools
 
 LLM_MODEL = "glm-4-flash"
-AGENT_TIMEOUT = 90.0  # max seconds for entire agent run
+AGENT_TIMEOUT = 90.0
+
+# Trace persistence
+_trace_exporter = TraceExporter(output_dir="traces")
 
 # ── Pydantic schemas ─────────────────────────────────────────
 
@@ -78,6 +82,8 @@ class TraceResponse(BaseModel):
     answer: str = ""
     coverage: float = 0.0
     latency_seconds: float = 0.0
+    timing: dict = {}
+    dag_edges: list[list[str]] = []
     steps: int = 0
     tool_calls: int = 0
     errors: list[ErrorInfo] = []
@@ -136,10 +142,15 @@ async def run_agent(
     step_errors: list[dict] = []
     start = time.perf_counter()
 
-    # Wrap entire agent run with StepRunner
+    # Observability: init tracer
+    tracer = AgentTracer(request_id=request_id, query=query, mode=mode)
+    tracer.start_phase("planner")
+
     async def run_agent_loop():
         async for event in agent.run(query):
-            if event.type == "plan_step":
+            if event.type == "plan_start":
+                pass
+            elif event.type == "plan_step":
                 plan_steps.append({
                     "id": event.plan_step_id,
                     "description": event.content,
@@ -147,6 +158,18 @@ async def run_agent(
                     "tool_hint": event.tool_hint or "",
                     "status": "ready",
                 })
+                tracer.log_step(
+                    step_id=event.plan_step_id,
+                    step_type="planner",
+                    description=event.content,
+                    status="ready",
+                )
+            elif event.type == "plan_complete":
+                tracer.end_phase("planner")
+                tracer.start_phase("execution")
+                for step in plan_steps[:-1]:
+                    for dep in step.get("dependencies", []):
+                        tracer.add_dag_edge(dep, step["id"])
             elif event.type == "tool_call":
                 tool_calls.append({
                     "step_id": event.plan_step_id,
@@ -156,12 +179,25 @@ async def run_agent(
                     "duration_ms": 0.0,
                     "status": "running",
                 })
+                tracer.log_tool_call(event.plan_step_id, event.tool_name)
+                if event.tool_name in ("search_knowledge_base", "vector_search", "web_search"):
+                    tracer.start_phase("retrieval")
             elif event.type == "tool_result":
                 if tool_calls:
                     tc = tool_calls[-1]
                     tc["result"] = event.content[:300]
                     tc["duration_ms"] = event.tool_duration_ms
                     tc["status"] = "success"
+                    tracer.log_step(
+                        step_id=tc["step_id"],
+                        step_type="retrieval" if tc["tool_name"] in ("search_knowledge_base", "vector_search") else "tool",
+                        description=tc["tool_name"],
+                        latency=event.tool_duration_ms / 1000,
+                        status="success",
+                        tool_name=tc["tool_name"],
+                    )
+                if event.tool_name in ("search_knowledge_base", "vector_search", "web_search"):
+                    tracer.end_phase("retrieval")
             elif event.type == "tool_error":
                 step_errors.append({
                     "step_id": event.plan_step_id,
@@ -169,11 +205,13 @@ async def run_agent(
                     "message": event.content[:200],
                     "recoverable": True,
                 })
+                tracer.log_error(event.plan_step_id, f"tool_error:{event.tool_name}", event.content[:200])
                 if tool_calls:
                     tool_calls[-1]["status"] = "error"
                     tool_calls[-1]["result"] = event.content[:200]
             elif event.type == "chunk":
                 chunks.append(event.content)
+        tracer.end_phase("execution")
         return True
 
     runner = StepRunner(timeout=AGENT_TIMEOUT, max_retries=0, step_id=request_id)
@@ -200,6 +238,13 @@ async def run_agent(
         found = sum(1 for kw in expected_keywords if kw.lower() in al)
         coverage = found / len(expected_keywords)
 
+    # Finalize and persist trace
+    trace = tracer.finalize(answer=answer, coverage=coverage)
+    try:
+        _trace_exporter.save(trace)
+    except Exception:
+        pass  # non-critical
+
     return {
         "request_id": request_id,
         "query": query,
@@ -209,6 +254,8 @@ async def run_agent(
         "answer": answer,
         "coverage": round(coverage, 3),
         "latency_seconds": round(duration, 2),
+        "timing": trace.timing,
+        "dag_edges": trace.dag_edges,
         "steps": len(plan_steps),
         "tool_calls": len(tool_calls),
         "errors": errors,
