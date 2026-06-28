@@ -71,6 +71,6 @@
     "vitest": "^4.1.5",
     "vue-eslint-parser": "^9.3.2",
     "vue-tsc": "^3.3.2",
-    "vue-virtual-scroller": "^2.0.0-beta.8"
+    "vue-virtual-scroller": "^3.0.4"
   }
 }
