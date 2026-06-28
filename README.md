@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-v1.2.1-blue?logo=semver" alt="Version">
+  <img src="https://img.shields.io/badge/版本-v1.3.0-blue?logo=semver" alt="Version">
   <img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python" alt="Python">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Vue_3-3.4-4FC08D?logo=vuedotjs" alt="Vue 3">

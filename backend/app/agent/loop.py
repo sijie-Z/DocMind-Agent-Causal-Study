@@ -20,6 +20,7 @@ from openai import AsyncOpenAI
 
 from app.agent.config import AgentConfig
 from app.agent.context import ContextEngine
+from app.agent.task_outcome import FailureStage, TaskOutcomeBuilder
 from app.agent.events import AgentEvent
 from app.agent.exec_context import ExecutionContext
 from app.agent.executor import Executor
@@ -210,253 +211,304 @@ class PERAgentLoop:
 
         # ── Execution Context (per-request state) ────────────────────────
         ctx = ExecutionContext(query=query)
+        # TaskOutcomeBuilder tracks the entire lifecycle — finalised in finally block
+        builder = TaskOutcomeBuilder(
+            task_id=ctx.task_id, query=query,
+            config=self.config, ctx=self,
+        )
 
-        # ── Phase 0: Memory recall ────────────────────────────────────────
-        memory_context = ""
-        if self.config.enable_memory:
-            try:
-                memory_context = await self.memory.get_context_for_query(query)
-                if memory_context:
-                    yield AgentEvent(
-                        type="thinking",
-                        content="回忆相关上下文...",
-                        thinking_type="reasoning",
-                    )
-                    await _yield_control()
-            except Exception as e:
-                logger.warning(f"Memory recall failed: {e}")
-
-        # ── Phase 1: Planning ────────────────────────────────────────────
-        plan: Plan | None = None
-        import uuid as _uuid_mod
-
-        if self.config.enable_planning:
-            # Collect plan steps from events as the planner emits them
-            plan_id = ""
-            plan_goal = query[:80]
-            plan_reasoning = ""
-            plan_steps: list[PlanStep] = []
-
-            async for event in self.planner.plan(
-                query=query,
-                history=history,
-                memory_context=memory_context,
-                ctx=ctx,
-            ):
-                yield event
-                if event.type == "plan_start":
-                    plan_id = event.plan_id
-                elif event.type == "plan_step" and event.plan_step_id:
-                    plan_steps.append(PlanStep(
-                        id=event.plan_step_id,
-                        description=event.content,
-                        dependencies=event.dependencies or [],
-                        tool_hint=event.tool_hint or None,
-                    ))
-                elif event.type == "plan_complete":
-                    plan_goal = event.plan_id
-
-            if plan_steps:
-                plan = Plan(
-                    id=plan_id or _uuid_mod.uuid4().hex[:12],
-                    goal=plan_goal,
-                    reasoning=plan_reasoning,
-                    steps=plan_steps,
-                )
-                ctx.goal = plan_goal
-                ctx.plan_summary = f"{len(plan_steps)} 个步骤"
-        else:
-            plan = Plan(
-                id=_uuid_mod.uuid4().hex[:12],
-                goal=query[:80],
-                reasoning="规划已禁用，直接执行。",
-                steps=[PlanStep(id="s1", description=query)],
-            )
-            yield AgentEvent(
-                type="plan_complete",
-                plan_id=plan.id,
-                content="直接执行模式",
-                plan_progress=0.0,
-            )
-
-        if not plan or not plan.steps:
-            plan = Plan(
-                id=_uuid_mod.uuid4().hex[:12],
-                goal=query[:80],
-                reasoning="默认计划",
-                steps=[PlanStep(id="s1", description=query)],
-            )
-
-        # ── Phase 2: Execution ───────────────────────────────────────────
         final_output = ""
+        plan: Plan | None = None
+        try:
 
-        if self.config.enable_tools:
-            async for event in self.executor.execute(
-                plan=plan,
-                history=history,
-                organization_id=self.organization_id,
-                user_id=self.user_id,
-                enable_thinking=self.config.enable_thinking,
-                ctx=ctx,
-            ):
-                yield event
-                if event.type == "chunk":
-                    final_output += event.content
+            # ── Phase 0: Memory recall ────────────────────────────────────────
+            memory_context = ""
+            if self.config.enable_memory:
+                try:
+                    memory_context = await self.memory.get_context_for_query(query)
+                    if memory_context:
+                        yield AgentEvent(
+                            type="thinking",
+                            content="回忆相关上下文...",
+                            thinking_type="reasoning",
+                        )
+                        await _yield_control()
+                except Exception as e:
+                    logger.warning(f"Memory recall failed: {e}")
 
-            # Conditional routing: if remaining steps are unlikely to add value, skip them
-            remaining_steps = [s for s in plan.steps if s.status == "pending"]
-            if remaining_steps and not self._should_continue_execution(final_output, plan, remaining_steps):
-                skipped = [s for s in remaining_steps if s.status == "pending"]
-                for s in skipped:
-                    s.status = "skipped"
-                if skipped:
-                    yield AgentEvent(
-                        type="thinking",
-                        content=f"已有充分信息，跳过 {len(skipped)} 个剩余步骤",
-                        thinking_type="evaluation",
-                        plan_id=plan.id,
-                        plan_progress=plan.progress,
+            # ── Phase 1: Planning ────────────────────────────────────────────
+            plan: Plan | None = None
+            import uuid as _uuid_mod
+
+            if self.config.enable_planning:
+                builder.mark_planning_started()
+                # Collect plan steps from events as the planner emits them
+                plan_id = ""
+                plan_goal = query[:80]
+                plan_reasoning = ""
+                plan_steps: list[PlanStep] = []
+
+                async for event in self.planner.plan(
+                    query=query,
+                    history=history,
+                    memory_context=memory_context,
+                    ctx=ctx,
+                ):
+                    yield event
+                    if event.type == "plan_start":
+                        plan_id = event.plan_id
+                    elif event.type == "plan_step" and event.plan_step_id:
+                        plan_steps.append(PlanStep(
+                            id=event.plan_step_id,
+                            description=event.content,
+                            dependencies=event.dependencies or [],
+                            tool_hint=event.tool_hint or None,
+                        ))
+                    elif event.type == "plan_complete":
+                        plan_goal = event.plan_id
+
+                if plan_steps:
+                    plan = Plan(
+                        id=plan_id or _uuid_mod.uuid4().hex[:12],
+                        goal=plan_goal,
+                        reasoning=plan_reasoning,
+                        steps=plan_steps,
                     )
-                    logger.info("Conditional routing: %d steps skipped (sufficient info)", len(skipped))
-        else:
-            # Tool-less mode: single LLM call
-            messages = self._build_messages(query, history, context_docs, memory_context)
-            try:
-                response = await self.client.chat.completions.create(
-                    model=self.config.get_deep_model(),
-                    messages=messages,
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.max_tokens,
-                    timeout=self.config.timeout,
+                    ctx.goal = plan_goal
+                    ctx.plan_summary = f"{len(plan_steps)} 个步骤"
+                    builder.mark_planning_completed(step_count=len(plan_steps))
+                else:
+                    builder.mark_planning_completed(step_count=0, result="fail")
+            else:
+                plan = Plan(
+                    id=_uuid_mod.uuid4().hex[:12],
+                    goal=query[:80],
+                    reasoning="规划已禁用，直接执行。",
+                    steps=[PlanStep(id="s1", description=query)],
                 )
-                content = response.choices[0].message.content or ""
-                if content:
-                    yield AgentEvent(type="chunk", content=content)
-                    final_output = content
-            except Exception as e:
-                yield AgentEvent(type="error", content=f"LLM Error: {e}")
+                yield AgentEvent(
+                    type="plan_complete",
+                    plan_id=plan.id,
+                    content="直接执行模式",
+                    plan_progress=0.0,
+                )
+                builder.mark_planning_skipped()
 
-        # ── Phase 2b: Quality Gate ────────────────────────────────────────
-        if plan.steps:
-            from app.agent.quality_gate import quality_gate_check
-            step_results = self.memory.get_all_results()
-            qg_result = quality_gate_check(step_results)
-            if not qg_result["passed"]:
-                fatal = qg_result.get("fatal_issues", [])
-                warnings = qg_result["summary"]
-                if fatal:
-                    yield AgentEvent(
-                        type="thinking",
-                        content=f"质量门控发现 {len(fatal)} 个问题:\n" + "\n".join(fatal),
-                        thinking_type="evaluation",
-                    )
-                if self.config.enable_thinking:
-                    yield AgentEvent(
-                        type="thinking",
-                        content=warnings[:500],
-                        thinking_type="evaluation",
-                    )
-                logger.info("Quality gate: %d passed, %d concerns, %d failed",
-                    sum(1 for g, _ in qg_result["grades"].values() if g == "A"),
-                    sum(1 for g, _ in qg_result["grades"].values() if g == "C"),
-                    sum(1 for g, _ in qg_result["grades"].values() if g == "F"),
+            if not plan or not plan.steps:
+                plan = Plan(
+                    id=_uuid_mod.uuid4().hex[:12],
+                    goal=query[:80],
+                    reasoning="默认计划",
+                    steps=[PlanStep(id="s1", description=query)],
                 )
 
-        # ── Phase 3: Reflection ──────────────────────────────────────────
-        if self.config.enable_reflection and plan.steps:
-            results = self.memory.get_all_results()
-            async for event in self.reflector.reflect(plan, results, ctx=ctx):
-                yield event
-                # Check reflection decision
-                if event.type == "reflection" and event.reflection_result == "retry":
-                    # Retry specific step
-                    step_id = event.plan_step_id
-                    if step_id:
-                        for step in plan.steps:
-                            if step.id == step_id:
-                                step.status = "pending"
-                                step.retry_count += 1
-                                yield AgentEvent(
-                                    type="thinking",
-                                    content=f"重新执行步骤: {step.description}",
-                                    thinking_type="correction",
-                                    plan_id=plan.id,
-                                    plan_step_id=step.id,
-                                    retry_attempt=step.retry_count,
-                                )
-                                # Re-execute just this step
-                                async for retry_event in self.executor._execute_step_with_retry(
-                                    step=step,
-                                    plan=plan,
-                                    history=history,
-                                    organization_id=self.organization_id,
-                                    user_id=self.user_id,
-                                    enable_thinking=self.config.enable_thinking,
-                                ):
-                                    if retry_event.type == "chunk":
-                                        final_output += "\n\n[重试结果]\n" + retry_event.content
-                                    yield retry_event
-                                break
+            # ── Phase 2: Execution ───────────────────────────────────────────
 
-            # ── Phase 3b: Adversarial Review ────────────────────────────────
+            if self.config.enable_tools:
+                async for event in self.executor.execute(
+                    plan=plan,
+                    history=history,
+                    organization_id=self.organization_id,
+                    user_id=self.user_id,
+                    enable_thinking=self.config.enable_thinking,
+                    ctx=ctx,
+                ):
+                    yield event
+                    if event.type == "chunk":
+                        final_output += event.content
+                    elif event.type == "tool_result":
+                        builder.record_tool_call(event.tool_name, success=True)
+                    elif event.type == "tool_error":
+                        builder.record_tool_call(event.tool_name, success=False)
+                        if event.retry_attempt > 0:
+                            builder.record_retry()
+
+                # Conditional routing: if remaining steps are unlikely to add value, skip them
+                remaining_steps = [s for s in plan.steps if s.status == "pending"]
+                if remaining_steps and not self._should_continue_execution(final_output, plan, remaining_steps):
+                    skipped = [s for s in remaining_steps if s.status == "pending"]
+                    for s in skipped:
+                        s.status = "skipped"
+                    if skipped:
+                        yield AgentEvent(
+                            type="thinking",
+                            content=f"已有充分信息，跳过 {len(skipped)} 个剩余步骤",
+                            thinking_type="evaluation",
+                            plan_id=plan.id,
+                            plan_progress=plan.progress,
+                        )
+                        logger.info("Conditional routing: %d steps skipped (sufficient info)", len(skipped))
+            else:
+                # Tool-less mode: single LLM call
+                messages = self._build_messages(query, history, context_docs, memory_context)
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=self.config.get_deep_model(),
+                        messages=messages,
+                        temperature=self.config.temperature,
+                        max_tokens=self.config.max_tokens,
+                        timeout=self.config.timeout,
+                    )
+                    content = response.choices[0].message.content or ""
+                    if content:
+                        yield AgentEvent(type="chunk", content=content)
+                        final_output = content
+                except Exception as e:
+                    yield AgentEvent(type="error", content=f"LLM Error: {e}")
+
+            # ── Phase 2b: Quality Gate ────────────────────────────────────────
+            if plan.steps:
+                from app.agent.quality_gate import quality_gate_check
+                step_results = self.memory.get_all_results()
+                qg_result = quality_gate_check(step_results)
+                # Track quality gate outcome
+                qg_fatal = qg_result.get("fatal_issues", [])
+                qg_grades = qg_result.get("grades", {})
+                qg_total_issues = sum(1 for g, _ in qg_grades.values() if g in ("C", "F"))
+                builder.mark_quality_gate(
+                    passed=qg_result["passed"],
+                    fatal_count=len(qg_fatal),
+                    issues_total=qg_total_issues,
+                )
+                if not qg_result["passed"]:
+                    fatal = qg_result.get("fatal_issues", [])
+                    warnings = qg_result["summary"]
+                    if fatal:
+                        yield AgentEvent(
+                            type="thinking",
+                            content=f"质量门控发现 {len(fatal)} 个问题:\n" + "\n".join(fatal),
+                            thinking_type="evaluation",
+                        )
+                    if self.config.enable_thinking:
+                        yield AgentEvent(
+                            type="thinking",
+                            content=warnings[:500],
+                            thinking_type="evaluation",
+                        )
+                    logger.info("Quality gate: %d passed, %d concerns, %d failed",
+                        sum(1 for g, _ in qg_result["grades"].values() if g == "A"),
+                        sum(1 for g, _ in qg_result["grades"].values() if g == "C"),
+                        sum(1 for g, _ in qg_result["grades"].values() if g == "F"),
+                    )
+
+            # ── Phase 3: Reflection ──────────────────────────────────────────
+            reflection_decision = "pass"
             if self.config.enable_reflection and plan.steps:
                 results = self.memory.get_all_results()
-                yield AgentEvent(
-                    type="thinking",
-                    content="进行对抗性质检，审查结果中可能存在的问题...",
-                    thinking_type="evaluation",
-                )
-                await _yield_control()
-                review = await self.reviewer.review(plan, results)
-                issues = review.get("issues_found", [])
-                if issues:
-                    high_issues = [i for i in issues if i.get("severity") == "high"]
-                    if high_issues:
-                        logger.info("Adversarial review found %d high-severity issues", len(high_issues))
-                        for issue in high_issues:
-                            final_output += (
-                                f"\n\n⚠️ **审查发现**: {issue.get('description', '')}\n"
-                                f"  建议: {issue.get('suggestion', '')}"
+                async for event in self.reflector.reflect(plan, results, ctx=ctx):
+                    yield event
+                    if event.type == "reflection":
+                        reflection_decision = event.reflection_result
+                    # Check reflection decision
+                    if event.type == "reflection" and event.reflection_result == "retry":
+                        # Retry specific step
+                        step_id = event.plan_step_id
+                        if step_id:
+                            for step in plan.steps:
+                                if step.id == step_id:
+                                    step.status = "pending"
+                                    step.retry_count += 1
+                                    yield AgentEvent(
+                                        type="thinking",
+                                        content=f"重新执行步骤: {step.description}",
+                                        thinking_type="correction",
+                                        plan_id=plan.id,
+                                        plan_step_id=step.id,
+                                        retry_attempt=step.retry_count,
+                                    )
+                                    # Re-execute just this step
+                                    async for retry_event in self.executor._execute_step_with_retry(
+                                        step=step,
+                                        plan=plan,
+                                        history=history,
+                                        organization_id=self.organization_id,
+                                        user_id=self.user_id,
+                                        enable_thinking=self.config.enable_thinking,
+                                    ):
+                                        if retry_event.type == "chunk":
+                                            final_output += "\n\n[重试结果]\n" + retry_event.content
+                                        elif retry_event.type == "tool_result":
+                                            builder.record_tool_call(retry_event.tool_name, success=True)
+                                        elif retry_event.type == "tool_error":
+                                            builder.record_tool_call(retry_event.tool_name, success=False)
+                                        yield retry_event
+                                    break
+
+                # Record reflection outcome
+                builder.mark_reflector(decision=reflection_decision)
+
+                # ── Phase 3b: Adversarial Review ────────────────────────────────
+                if self.config.enable_reflection and plan.steps:
+                    results = self.memory.get_all_results()
+                    yield AgentEvent(
+                        type="thinking",
+                        content="进行对抗性质检，审查结果中可能存在的问题...",
+                        thinking_type="evaluation",
+                    )
+                    await _yield_control()
+                    review = await self.reviewer.review(plan, results)
+                    issues = review.get("issues_found", [])
+                    high_severity = len([i for i in issues if i.get("severity") == "high"])
+                    builder.mark_reviewer(issues_found=len(issues), high_severity=high_severity)
+                    if issues:
+                        high_issues = [i for i in issues if i.get("severity") == "high"]
+                        if high_issues:
+                            logger.info("Adversarial review found %d high-severity issues", len(high_issues))
+                            for issue in high_issues:
+                                final_output += (
+                                    f"\n\n⚠️ **审查发现**: {issue.get('description', '')}\n"
+                                    f"  建议: {issue.get('suggestion', '')}"
+                                )
+                                yield AgentEvent(
+                                    type="thinking",
+                                    content=f"审查发现高风险问题: {issue.get('description', '')}",
+                                    thinking_type="evaluation",
+                                )
+                        # Log all issues
+                        for issue in issues:
+                            logger.info(
+                                "Review issue [%s]: %s",
+                                issue.get("severity", "unknown"),
+                                issue.get("description", "")[:100],
                             )
-                            yield AgentEvent(
-                                type="thinking",
-                                content=f"审查发现高风险问题: {issue.get('description', '')}",
-                                thinking_type="evaluation",
-                            )
-                    # Log all issues
-                    for issue in issues:
-                        logger.info(
-                            "Review issue [%s]: %s",
-                            issue.get("severity", "unknown"),
-                            issue.get("description", "")[:100],
-                        )
 
         # ── Phase 4: Store + Finalize ─────────────────────────────────────
-        await self.memory.record_interaction(query, final_output)
+            await self.memory.record_interaction(query, final_output)
 
-        ctx.mark_done()
-        ctx.record_decision("finalize", "complete", "Agent loop finished")
-        # Persist for execution replay
-        try:
-            await ctx.save()
-        except Exception:
-            pass
-        # Yield execution context as a data event for observability
-        yield AgentEvent(
-            type="execution_context",
-            content=ctx.to_dict(),
-            plan_id=plan.id if plan else "",
-            plan_progress=1.0,
-        )
+            ctx.mark_done()
+            ctx.record_decision("finalize", "complete", "Agent loop finished")
+            # Persist for execution replay
+            try:
+                await ctx.save()
+            except Exception:
+                pass
+            # Yield execution context as a data event for observability
+            yield AgentEvent(
+                type="execution_context",
+                content=ctx.to_dict(),
+                plan_id=plan.id if plan else "",
+                plan_progress=1.0,
+            )
 
-        elapsed = (time.perf_counter() - start_time) * 1000
-        logger.info(
-            f"PER loop completed in {elapsed:.0f}ms | "
-            f"Plan: {plan.goal[:50]}... | Steps: {plan.completed_steps}/{plan.total_steps} | "
-            f"Output: {len(final_output)} chars"
-        )
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.info(
+                f"PER loop completed in {elapsed:.0f}ms | "
+                f"Plan: {plan.goal[:50]}... | Steps: {plan.completed_steps}/{plan.total_steps} | "
+                f"Output: {len(final_output)} chars"
+            )
 
-        yield AgentEvent(type="done", plan_progress=1.0)
+            yield AgentEvent(type="done", plan_progress=1.0)
+            if not builder.outcome.is_complete:
+                builder.mark_success()
+
+        except Exception as exc:
+            builder.mark_failure(builder.current_stage, str(exc))
+            yield AgentEvent(type="error", content=f"Agent unhandled error: {exc}")
+            logger.exception("PER loop failed")
+
+        finally:
+            builder.finalise(output=final_output, total_tokens=ctx.total_tokens)
+            await builder.persist()
 
     def _build_messages(
         self,
